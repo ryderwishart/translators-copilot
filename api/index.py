@@ -135,3 +135,21 @@ def get_bible(language_code: str):
     
     return True
 
+# endpoint to get table info
+@app.get("/api/db_info")
+def get_db_info():
+    output = []
+    
+    db = lancedb.connect("./lancedb")
+    table_names = db.table_names()
+    
+    for name in table_names:
+        table = db.open_table(name).to_pandas()
+        output.append({
+            'name': name,
+            'columns': list(table.columns),
+            'num_rows': len(table)
+        })
+    
+    return output 
+
