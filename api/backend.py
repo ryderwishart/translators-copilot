@@ -54,3 +54,42 @@ def get_target_vref_df(language_code, drop_empty_verses=False):
     return target_df
 
 
+def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
+    """Turn a pandas dataframe into a LanceDB table."""
+    start_time = time.time()
+    print('Creating LanceDB table...')
+    import lancedb
+    from lancedb.embeddings import with_embeddings
+    
+    # rename 'content' field as 'text' as lancedb expects
+    try:
+        df = df.rename(columns={content_column_name: 'text'})
+    except:
+        assert 'text' in df.columns, 'Please rename the content column to "text" or specify the column name in the function call.'
+    
+    # mkdir lancedb if it doesn't exist
+    if not os.path.exists('./lancedb'):
+        os.mkdir('./lancedb')
+    
+    # Connect to LanceDB
+    db = lancedb.connect("./lancedb")
+    
+    # Try to load existing table
+    try:
+        table = db.open_table(table_name)
+    # If it doesn't exist, create it
+    except:
+        
+        df_filtered = df[df['text'].str.strip() != '']
+        data = with_embeddings(embed_batch, df_filtered.sample(10))
+
+        # data = with_embeddings(embed_batch, df)
+        
+        table = db.create_table(
+            table_name,
+            data=data,
+            mode="create",
+        )  
+    print('LanceDB table created. Time elapsed: ', time.time() - start_time, 'seconds.')
+    return table  
+    
