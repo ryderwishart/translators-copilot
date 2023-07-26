@@ -93,3 +93,28 @@ def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
     print('LanceDB table created. Time elapsed: ', time.time() - start_time, 'seconds.')
     return table  
     
+def load_database(target_language_code=None):
+    print('Loading dataframes...')
+    if target_language_code:
+        print(f'Loading target language data for {target_language_code}...')
+        bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code)
+    else:
+        print('No target language code specified. Loading English and Greek/Hebrew data only.')
+        bsb_bible_df, macula_df = get_dataframes()
+        target_df = None
+    
+    print('Creating English tables...')
+    english_table_name = 'bsb_bible'
+    create_lancedb_table_from_df(bsb_bible_df, english_table_name)
+    
+    print('Creating Greek/Hebrew tables...')
+    macula_table_name = 'macula'
+    create_lancedb_table_from_df(macula_df, macula_table_name)
+    
+    if target_df is not None:
+        print('Creating target language tables...')
+        create_lancedb_table_from_df(target_df, target_language_code)
+
+    print('Database populated.')
+    return True
+    
