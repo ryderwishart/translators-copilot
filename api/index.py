@@ -44,3 +44,13 @@ def read_macula_verse_item(full_verse_ref: str):
     }
     return verse_output
 
+# get target language data by language code
+@app.get("/api/target_vref_data/{language_code}")
+def read_target_language_item(language_code: str, drop_empty_verses: bool = False):
+    """
+    Get target language data by language code
+    e.g., http://localhost:3000/api/target_vref_data/aai
+    """
+    target_vref_data = get_target_vref_df(language_code, drop_empty_verses=drop_empty_verses)
+    return target_vref_data
+
