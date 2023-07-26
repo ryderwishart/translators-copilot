@@ -153,3 +153,9 @@ def get_db_info():
     
     return output 
 
+@app.get("/api/populate_db/{target_language_code}")
+def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
+    print('Populating database...')
+    background_tasks.add_task(load_database, target_language_code)
+    return {"status": "Database population started..."}
+
