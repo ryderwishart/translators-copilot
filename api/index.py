@@ -159,3 +159,23 @@ def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(load_database, target_language_code)
     return {"status": "Database population started..."}
 
+@app.get("/api/query/{language_code}/{query}&limit={limit}")
+def query(language_code: str, query: str, limit: str='10', ):
+    limit = int(limit)
+    table = get_table_from_database(language_code)
+    query_vector = embed_batch([query])[0]
+    result = table.search(query_vector).limit(limit).to_df().to_dict()
+    if not result.values():
+        return []
+    texts = result['text']
+    scores = result['score']
+    
+    output = []
+    for i in range(len(texts)):
+        output.append({
+            'text': texts[i],
+            'score': scores[i]
+        })
+        
+    return output
+
