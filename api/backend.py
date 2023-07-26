@@ -118,3 +118,21 @@ def load_database(target_language_code=None):
     print('Database populated.')
     return True
     
+def get_table_from_database(table_name):
+    """
+    Returns a table by name. 
+    Use '/api/db_info' endpoint to see available tables.
+    """
+    import lancedb
+    db = lancedb.connect("./lancedb")
+    table_names = db.table_names()
+    if table_name not in table_names:
+        return f'''Table {table_name} not found. Please check the table name and try again.
+Available tables: {table_names}'''
+    table = db.open_table(table_name)
+    return table
+
+def get_complete_bible_triples(language_code: str, source_df, english_df):
+    """Get complete Bible triples from bsb_bible_df, macula_df, and target_vref"""
+    pass
+
