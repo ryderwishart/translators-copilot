@@ -1,3 +1,13 @@
+from sentence_transformers import SentenceTransformer
+
+name="paraphrase-albert-small-v2"
+model = SentenceTransformer(name)
+
+# used for both training and querying
+def embed_batch(batch):
+    print('Embedding batch of size', len(batch))
+    return [model.encode(sentence) for sentence in batch]
+
 # Long book names to USFM (3 uppercase letters) format
 book_name_mapping = {
     "Genesis": "GEN",
