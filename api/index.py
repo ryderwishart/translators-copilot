@@ -26,3 +26,21 @@ def read_item(full_verse_ref: str):
     }
     return verse_output
 
+# get macula verse by ref
+@app.get("/api/macula_verses/{full_verse_ref}")
+def read_macula_verse_item(full_verse_ref: str):
+    """
+    Get verse from macula_greek_df and macula_hebrew_df
+    e.g., http://localhost:3000/api/macula_verses/GEN%202:19
+    or NT: http://localhost:3000/api/macula_verses/ROM%202:19
+    """
+    print('full_verse_ref', full_verse_ref)
+    verse = macula_df[macula_df['vref'] == full_verse_ref]
+    entry_number_of_verse = verse.index[0]
+    verse_output = {
+        'verse_number': int(entry_number_of_verse),
+        'vref': verse['vref'][entry_number_of_verse],
+        'content': verse['content'][entry_number_of_verse]
+    }
+    return verse_output
+
