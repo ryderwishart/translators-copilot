@@ -1,3 +1,20 @@
+import os, time
+import pandas as pd
+from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
+def get_dataframes(target_language_code=None):
+    """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
+    bsb_bible_df = pd.read_csv('data/bsb-utf8.txt', sep='\t', names=['vref', 'content'], header=0)
+    bsb_bible_df['vref'] = bsb_bible_df['vref'].apply(abbreviate_book_name_in_full_reference)
+    macula_df = pd.read_csv('data/combined_greek_hebrew_vref.csv') # Note: csv wrangled in notebook: `create-combined-macula-df.ipynb`
+    
+    if target_language_code:
+        target_tsv = get_target_vref_df(target_language_code)
+        target_df = get_target_vref_df(target_language_code)
+        return bsb_bible_df, macula_df, target_df
+
+    else:
+        return bsb_bible_df, macula_df
+
 def get_target_vref_df(language_code, drop_empty_verses=False):
     """Get target language data by language code"""
     if not len(language_code) == 3:
