@@ -54,3 +54,37 @@ def read_target_language_item(language_code: str, drop_empty_verses: bool = Fals
     target_vref_data = get_target_vref_df(language_code, drop_empty_verses=drop_empty_verses)
     return target_vref_data
 
+# get a single verse with source text and gloss, bsb english, and target language
+@app.get("/api/verse/{full_verse_ref}&{language_code}")
+def get_verse(full_verse_ref: str, language_code: str):
+    """
+    Get verse from bsb_bible_df, 
+    AND macula_df (greek and hebrew)
+    AND target_vref_data (target language)
+    
+    e.g., http://localhost:3000/api/verse/GEN%202:19&aai
+    or NT: http://localhost:3000/api/verse/ROM%202:19&aai
+    """
+    bsb_row = bsb_bible_df[bsb_bible_df['vref'] == full_verse_ref]
+    macula_row = macula_df[macula_df['vref'] == full_verse_ref]
+    target_df = get_target_vref_df(language_code)
+    target_row = target_df[target_df['vref'] == full_verse_ref]
+    
+    return {
+        'bsb': {
+            'verse_number': int(bsb_row.index[0]),
+            'vref': bsb_row['vref'][bsb_row.index[0]],
+            'content': bsb_row['content'][bsb_row.index[0]]
+        },
+        'macula': {
+            'verse_number': int(macula_row.index[0]),
+            'vref': macula_row['vref'][macula_row.index[0]],
+            'content': macula_row['content'][macula_row.index[0]]
+        },
+        'target': {
+            'verse_number': int(target_row.index[0]),
+            'vref': target_row['vref'][target_row.index[0]],
+            'content': target_row['content'][target_row.index[0]]
+        }
+    }
+
