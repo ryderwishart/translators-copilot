@@ -2,10 +2,12 @@ from typing import Union
 import pandas as pd
 from fastapi import FastAPI, BackgroundTasks
 import time
-import os
+import os, json
 import lancedb
 from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database
 from .utils import get_full_book_name, get_book_abbreviation, embed_batch
+from .types import Message, RequestModel
+import requests
 
 app = FastAPI()
 
@@ -52,14 +54,14 @@ def read_macula_verse_item(full_verse_ref: str):
     return verse_output
 
 # get target language data by language code
-@app.get("/api/target_vref_data/{language_code}")
-def read_target_language_item(language_code: str, drop_empty_verses: bool = False):
-    """
-    Get target language data by language code
-    e.g., http://localhost:3000/api/target_vref_data/aai
-    """
-    target_vref_data = get_target_vref_df(language_code, drop_empty_verses=drop_empty_verses)
-    return target_vref_data
+# @app.get("/api/target_vref_data/{language_code}")
+# def read_target_language_item(language_code: str, drop_empty_verses: bool = False):
+#     """
+#     Get target language data by language code
+#     e.g., http://localhost:3000/api/target_vref_data/aai
+#     """
+#     target_vref_data = get_target_vref_df(language_code, drop_empty_verses=drop_empty_verses)
+#     return target_vref_data
 
 # get a single verse with source text and gloss, bsb english, and target language
 @app.get("/api/verse/{full_verse_ref}&{language_code}")
@@ -105,7 +107,6 @@ def get_bible(language_code: str):
     
     e.g., http://localhost:3000/api/bible/aai
     """
-    import json 
     
     target_vref_df = get_target_vref_df(language_code)
     
@@ -158,13 +159,17 @@ def get_db_info():
             'num_rows': len(table)
         })
     
-    return output 
+    return output
 
 @app.get("/api/populate_db/{target_language_code}")
 def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
+    # Check if db exists
+    if os.path.exists('./lancedb'):
+        if f'{target_language_code}.lance' in os.listdir('./lancedb'):
+            return {"status": "Database already exists. Please delete the database and try again."}
     print('Populating database...')
     background_tasks.add_task(load_database, target_language_code)
-    return {"status": "Database population started..."}
+    return {"status": "Database population started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
 
 @app.get("/api/query/{language_code}/{query}&limit={limit}")
 def query(language_code: str, query: str, limit: str='10', ):

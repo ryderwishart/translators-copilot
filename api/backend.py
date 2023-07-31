@@ -1,6 +1,7 @@
 import os, time
 import pandas as pd
 from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
+
 def get_dataframes(target_language_code=None):
     """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
     bsb_bible_df = pd.read_csv('data/bsb-utf8.txt', sep='\t', names=['vref', 'content'], header=0)
@@ -81,7 +82,8 @@ def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
     except:
         
         df_filtered = df[df['text'].str.strip() != '']
-        data = with_embeddings(embed_batch, df_filtered.sample(10))
+        # data = with_embeddings(embed_batch, df_filtered.sample(10))
+        data = with_embeddings(embed_batch, df_filtered) 
 
         # data = with_embeddings(embed_batch, df)
         
@@ -131,8 +133,3 @@ def get_table_from_database(table_name):
 Available tables: {table_names}'''
     table = db.open_table(table_name)
     return table
-
-def get_complete_bible_triples(language_code: str, source_df, english_df):
-    """Get complete Bible triples from bsb_bible_df, macula_df, and target_vref"""
-    pass
-

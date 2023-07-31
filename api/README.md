@@ -2,7 +2,11 @@
 
 ## Setup
 
-...
+I have split the MACULA Hebrew CSV into three files, because it's huge, using this shell script:
+
+```zsh
+awk -v lines=$(wc -l < mh.csv | bc) -v parts=3 'NR == 1 {header = $0; next} {print > sprintf("part_" NR%parts ".csv")} END {for(i=0;i<parts;i++) system("cat <(echo \"" header "\") part_" i ".csv > final_part_" i ".csv")}' mh.csv
+```
 
 ## Main simulation loop
 
