@@ -181,12 +181,14 @@ def query(language_code: str, query: str, limit: str='10', ):
         return []
     texts = result['text']
     scores = result['score']
+    vrefs = result['vref']
     
     output = []
     for i in range(len(texts)):
         output.append({
             'text': texts[i],
-            'score': scores[i]
+            'score': scores[i],
+            'vref': vrefs[i]
         })
         
     return output
