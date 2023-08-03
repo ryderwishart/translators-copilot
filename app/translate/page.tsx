@@ -91,47 +91,8 @@ export default function Page() {
   if (error) return <div>Error: {error.message}</div>;
   if (!data) return <div>Loading similar sentences...</div>;
 
-  // Once I have data, for each example in data, query the http://localhost:3000/api/verse/ endpoint for the example.vref and the target language code.
-  // const similarSentences: Array<SimilarExample> = data.map((example: any) => {
-  //   return {
-  //     text: example.text,
-  //     score: example.score,
-  //     vref: example.vref,
-  //     bsb: '', // verseForExample.bsb.content,
-  //     macula: '', // verseForExample.macula.content,
-  //   };
-  // });
-
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <h2 className="text-2xl font-bold">Translate</h2>
-      <div className="flex flex-col items-center m-2">
-        {/**
-         * Here I need to construct the prompt using a template and the relevant fetched data.
-         * 
-         * promptData props looks like: 
-         * promptData: {
-    examples: SimilarExample[];
-    targetLanguageCode: string;
-    sourceLanguageCode: string;
-    sourceVerse: {
-        vref: string;
-        text: string;
-        macula: string;
-        target?: string; // NOTE: may be available for reference, but will not be available for untranslated verses
-    }
-  }
-         */}
-        <PromptCompletion
-          promptData={{
-            examples: similarSentences,
-            targetLanguageCode,
-            sourceLanguageCode,
-            sourceVerse,
-          }}
-        />
-      </div>
-
       <div className="flex flex-col justify-between">
         <h2 className="text-2xl font-bold">
           Set input for translating, input language, and target language
@@ -257,6 +218,18 @@ export default function Page() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <h2 className="text-2xl font-bold">Translate</h2>
+      <div className="flex flex-col items-center m-2">
+        <PromptCompletion
+          promptData={{
+            examples: similarSentences,
+            targetLanguageCode,
+            sourceLanguageCode,
+            sourceVerse,
+          }}
+        />
       </div>
     </main>
   );

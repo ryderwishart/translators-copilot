@@ -58,7 +58,7 @@ export default function PromptCompletion(props: Props) {
           `English Reference: ${example.bsb}\n` +
           `Target: ${example.target}\n`,
       )
-      .join('\n\n') +
+      .join('\n') +
     '\n\n' +
     sourceVerseForPrompt;
 
@@ -79,7 +79,7 @@ export default function PromptCompletion(props: Props) {
       ))}
       <form onSubmit={handleSubmit}>
         <label>
-          Submit this prompt?
+          Submit this prompt? (hit any key in input box to populate input)
           <input
             className="w-full bottom-0 border border-gray-300 rounded mb-8 shadow-xl p-2 h-max m-2"
             value={input}
