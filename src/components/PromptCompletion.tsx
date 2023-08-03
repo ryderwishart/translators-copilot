@@ -45,17 +45,18 @@ export default function PromptCompletion(props: Props) {
   const sourceVerseForPrompt = [
     `Greek/Hebrew Source: ${props.promptData.sourceVerse.macula.content}`,
     `English Reference: ${props.promptData.sourceVerse.bsb.content}`,
-    `Target ${props.promptData.targetLanguageCode}:`,
+    `Target:`, // FIXME: add full target language name, not just the target language code
   ].join('\n');
 
   const prompt =
-    `Translate the following sentence pairs into ${props.promptData.targetLanguageCode}:\n\n` +
+    `Translate the following sentence pairs into the target language:\n\n` +
     props.promptData.examples
+      .slice(0, 2)
       .map(
         (example) =>
           `Greek/Hebrew Source: ${example.macula}\n` +
           `English Reference: ${example.bsb}\n` +
-          `Target ${props.promptData.targetLanguageCode}: ${example.target}\n`,
+          `Target: ${example.target}\n`,
       )
       .join('\n\n') +
     '\n\n' +
