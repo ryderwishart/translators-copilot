@@ -1,5 +1,11 @@
 # Python backend notes
 
+`backend.py` contains functions for processing data.
+`index.py` contains API endpoints. The goal for this file is to simply forward calls to the appropriate functions in `backend.py`. (It's a bit polluted currently)
+`utils.py` generally simple helper functions. If some function is likely to be used in multiple contexts, put it here.
+
+The Python endpoints are accessible at `/api/*` (paths specified in `index.py`). If you need to override an API path to use the NextJS `/app/api/someRoute` path, then specify this path in `next.config.js`, otherwise every path will be rerouted to the FastAPI Python backend.
+
 ## Setup
 
 I have split the MACULA Hebrew CSV into three files, because it's huge, using this shell script:
