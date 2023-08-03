@@ -1,6 +1,7 @@
 import os, time
 import pandas as pd
 from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
+from .logger_config import logger
 
 def get_dataframes(target_language_code=None):
     """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
@@ -54,13 +55,16 @@ def get_target_vref_df(language_code, drop_empty_verses=False):
     
     return target_df
 
+from pandas import DataFrame as DataFrameClass
 
-def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
+def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_name='content'):
     """Turn a pandas dataframe into a LanceDB table."""
     start_time = time.time()
-    print('Creating LanceDB table...')
+    logger.info('Creating LanceDB table...', color='green')
     import lancedb
     from lancedb.embeddings import with_embeddings
+    
+    logger.error(f'Creating LanceDB table: {table_name}, {df.head}')
     
     # rename 'content' field as 'text' as lancedb expects
     try:
@@ -75,15 +79,14 @@ def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
     # Connect to LanceDB
     db = lancedb.connect("./lancedb")
     
-    # Try to load existing table
-    try:
-        table = db.open_table(table_name)
-    # If it doesn't exist, create it
-    except:
+    table = get_table_from_database(table_name)
+    
+    if not table:
+        # If it doesn't exist, create it
         
         df_filtered = df[df['text'].str.strip() != '']
-        # data = with_embeddings(embed_batch, df_filtered.sample(10))
-        data = with_embeddings(embed_batch, df_filtered) 
+        data = with_embeddings(embed_batch, df_filtered.sample(10000)) # FIXME: I can't process the entirety of the bsb bible for some reason. Something is corrupt or malformed in the data perhaps
+        # data = with_embeddings(embed_batch, df_filtered) 
 
         # data = with_embeddings(embed_batch, df)
         
@@ -91,7 +94,11 @@ def create_lancedb_table_from_df(df, table_name, content_column_name='content'):
             table_name,
             data=data,
             mode="create",
-        )  
+        )
+          
+    else:
+        table = db.open_table(table_name)
+    
     print('LanceDB table created. Time elapsed: ', time.time() - start_time, 'seconds.')
     return table  
     
@@ -129,7 +136,9 @@ def get_table_from_database(table_name):
     db = lancedb.connect("./lancedb")
     table_names = db.table_names()
     if table_name not in table_names:
-        return f'''Table {table_name} not found. Please check the table name and try again.
-Available tables: {table_names}'''
+        logger.error(f'''Table {table_name} not found. Please check the table name and try again.
+                     Available tables: {table_names}''')
+        return None
+
     table = db.open_table(table_name)
     return table
