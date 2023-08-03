@@ -1,4 +1,6 @@
-from .logger_config import logger
+import logging
+
+logger = logging.getLogger('uvicorn')
 
 from sentence_transformers import SentenceTransformer
 
@@ -7,7 +9,7 @@ model = SentenceTransformer(name)
 
 # used for both training and querying
 def embed_batch(batch):
-    logger.info('Embedding batch of size', len(batch))
+    logger.info(f'Embedding batch of size {len(batch)}')
     try:
         return [model.encode(sentence) for sentence in batch]
     except Exception as e:
