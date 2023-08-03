@@ -9,6 +9,8 @@ from .utils import get_full_book_name, get_book_abbreviation, embed_batch
 from .types import Message, RequestModel
 import requests
 
+from .logger_config import logger
+
 app = FastAPI()
 
 
@@ -25,7 +27,7 @@ def read_item(full_verse_ref: str):
     Get verse from bsb_bible_df (Berean Standard Bible)
     e.g., http://localhost:3000/api/bsb_verses/GEN%202:19
     """
-    print('debug: ', bsb_bible_df.head())
+    logger.info('debug: ', bsb_bible_df.head())
     verse = bsb_bible_df[bsb_bible_df['vref'] == full_verse_ref]
     entry_number_of_verse = verse.index[0]
     verse_output = {
@@ -43,7 +45,7 @@ def read_macula_verse_item(full_verse_ref: str):
     e.g., http://localhost:3000/api/macula_verses/GEN%202:19
     or NT: http://localhost:3000/api/macula_verses/ROM%202:19
     """
-    print('full_verse_ref', full_verse_ref)
+    logger.info('full_verse_ref', full_verse_ref)
     verse = macula_df[macula_df['vref'] == full_verse_ref]
     entry_number_of_verse = verse.index[0]
     verse_output = {
@@ -163,19 +165,42 @@ def get_db_info():
 
 @app.get("/api/populate_db/{target_language_code}")
 def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
+    """
+    Populate database based on language code (3-char ISO 639-3 code).
+    Pulls data from bsb_bible_df, macula_df, and a target language scraped from the ebible corpus.
+    """
+    
     # Check if db exists
     if os.path.exists('./lancedb'):
         if f'{target_language_code}.lance' in os.listdir('./lancedb'):
             return {"status": "Database already exists. Please delete the database and try again."}
-    print('Populating database...')
+    
+    if target_language_code.startswith('init'): # To initialize databases
+        logger.info('Initializing Greek/Hebrew and English vectorstores...')
+        background_tasks.add_task(create_lancedb_table_from_df, bsb_bible_df, 'bsb_bible') # load_database loads up the macula and bsb tables by default if they don't exist... Probably should make this less magical in the future
+        return {"status": "Database initialization started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
+    
+    logger.info('Populating database...')
     background_tasks.add_task(load_database, target_language_code)
     return {"status": "Database population started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
+
+# @app.get("/api/create_english_db")
+# def create_english_db(background_tasks: BackgroundTasks):
+#     # Check if db exists
+#     if os.path.exists('./lancedb/bsb_bible.lance'):
+#         return {"status": "English database already exists. Please delete the database and try again."}
+    
+#     logger.info('Creating English database...')
+#     background_tasks.add_task(create_english_db_task)
+#     return {"status": "English database creation started... takes about 10 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
 
 @app.get("/api/query/{language_code}/{query}&limit={limit}")
 def query(language_code: str, query: str, limit: str='10', ):
     limit = int(limit)
     table = get_table_from_database(language_code)
     query_vector = embed_batch([query])[0]
+    if not table:
+        return {'error':'table not found'}
     result = table.search(query_vector).limit(limit).to_df().to_dict()
     if not result.values():
         return []
