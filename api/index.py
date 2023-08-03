@@ -4,12 +4,13 @@ from fastapi import FastAPI, BackgroundTasks
 import time
 import os, json
 import lancedb
-from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database
+from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database, query_lancedb_table, build_translation_prompt, get_verse_triplet
 from .utils import get_full_book_name, get_book_abbreviation, embed_batch
 from .types import Message, RequestModel
 import requests
+import logging
 
-from .logger_config import logger
+logger = logging.getLogger('uvicorn')
 
 app = FastAPI()
 
@@ -68,36 +69,7 @@ def read_macula_verse_item(full_verse_ref: str):
 # get a single verse with source text and gloss, bsb english, and target language
 @app.get("/api/verse/{full_verse_ref}&{language_code}")
 def get_verse(full_verse_ref: str, language_code: str):
-    """
-    Get verse from bsb_bible_df, 
-    AND macula_df (greek and hebrew)
-    AND target_vref_data (target language)
-    
-    e.g., http://localhost:3000/api/verse/GEN%202:19&aai
-    or NT: http://localhost:3000/api/verse/ROM%202:19&aai
-    """
-    bsb_row = bsb_bible_df[bsb_bible_df['vref'] == full_verse_ref]
-    macula_row = macula_df[macula_df['vref'] == full_verse_ref]
-    target_df = get_target_vref_df(language_code)
-    target_row = target_df[target_df['vref'] == full_verse_ref]
-    
-    return {
-        'bsb': {
-            'verse_number': int(bsb_row.index[0]),
-            'vref': bsb_row['vref'][bsb_row.index[0]],
-            'content': bsb_row['content'][bsb_row.index[0]]
-        },
-        'macula': {
-            'verse_number': int(macula_row.index[0]),
-            'vref': macula_row['vref'][macula_row.index[0]],
-            'content': macula_row['content'][macula_row.index[0]]
-        },
-        'target': {
-            'verse_number': int(target_row.index[0]),
-            'vref': target_row['vref'][target_row.index[0]],
-            'content': target_row['content'][target_row.index[0]]
-        }
-    }
+    return get_verse_triplet(full_verse_ref, language_code, bsb_bible_df, macula_df)
 
 # get the entire bible with source text and gloss, bsb english, and target language
 @app.get("/api/bible/{language_code}")
@@ -184,37 +156,12 @@ def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
     background_tasks.add_task(load_database, target_language_code)
     return {"status": "Database population started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
 
-# @app.get("/api/create_english_db")
-# def create_english_db(background_tasks: BackgroundTasks):
-#     # Check if db exists
-#     if os.path.exists('./lancedb/bsb_bible.lance'):
-#         return {"status": "English database already exists. Please delete the database and try again."}
-    
-#     logger.info('Creating English database...')
-#     background_tasks.add_task(create_english_db_task)
-#     return {"status": "English database creation started... takes about 10 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
-
 @app.get("/api/query/{language_code}/{query}&limit={limit}")
-def query(language_code: str, query: str, limit: str='10', ):
-    limit = int(limit)
-    table = get_table_from_database(language_code)
-    query_vector = embed_batch([query])[0]
-    if not table:
-        return {'error':'table not found'}
-    result = table.search(query_vector).limit(limit).to_df().to_dict()
-    if not result.values():
-        return []
-    texts = result['text']
-    scores = result['score']
-    vrefs = result['vref']
-    
-    output = []
-    for i in range(len(texts)):
-        output.append({
-            'text': texts[i],
-            'score': scores[i],
-            'vref': vrefs[i]
-        })
-        
-    return output
+def call_query_endpoint(language_code: str, query: str, limit: str = '10'):
+    return query_lancedb_table(language_code, query, limit=limit)
 
+# User should be able to submit vref + source language + target language to a /api/translation-prompt-builder/ endpoint
+@app.get("/api/translation-prompt-builder")
+def get_translation_prompt(vref: str, target_language_code: str, source_language_code: str=None, bsb_bible_df=None, macula_df=None):
+    """Get a forward-translation few-shot prompt for a given vref, source, and target language code."""
+    return build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df)

@@ -1,7 +1,8 @@
 import os, time
 import pandas as pd
 from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
-from .logger_config import logger
+import logging
+logger = logging.getLogger('uvicorn')
 
 def get_dataframes(target_language_code=None):
     """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
@@ -142,3 +143,109 @@ def get_table_from_database(table_name):
 
     table = db.open_table(table_name)
     return table
+
+def get_verse_triplet(full_verse_ref: str, language_code: str, bsb_bible_df, macula_df):
+    """
+    Get verse from bsb_bible_df, 
+    AND macula_df (greek and hebrew)
+    AND target_vref_data (target language)
+    
+    e.g., http://localhost:3000/api/verse/GEN%202:19&aai
+    or NT: http://localhost:3000/api/verse/ROM%202:19&aai
+    """
+    
+    bsb_row = bsb_bible_df[bsb_bible_df['vref'] == full_verse_ref]
+    macula_row = macula_df[macula_df['vref'] == full_verse_ref]
+    target_df = get_target_vref_df(language_code)
+    target_row = target_df[target_df['vref'] == full_verse_ref]
+    
+    return {
+        'bsb': {
+            'verse_number': int(bsb_row.index[0]),
+            'vref': bsb_row['vref'][bsb_row.index[0]],
+            'content': bsb_row['content'][bsb_row.index[0]]
+        },
+        'macula': {
+            'verse_number': int(macula_row.index[0]),
+            'vref': macula_row['vref'][macula_row.index[0]],
+            'content': macula_row['content'][macula_row.index[0]]
+        },
+        'target': {
+            'verse_number': int(target_row.index[0]),
+            'vref': target_row['vref'][target_row.index[0]],
+            'content': target_row['content'][target_row.index[0]]
+        }
+    }
+
+def query_lancedb_table(language_code: str, query: str, limit: str='10'):
+    """Get similar sentences from a LanceDB table."""
+    limit = int(limit) # I don't know if this is necessary. The FastAPI endpoint might infer an int from the query param if I typed it that way
+    table = get_table_from_database(language_code)
+    query_vector = embed_batch([query])[0]
+    if not table:
+        return {'error':'table not found'}
+    result = table.search(query_vector).limit(limit).to_df().to_dict()
+    if not result.values():
+        return []
+    texts = result['text']
+    scores = result['score']
+    vrefs = result['vref']
+    
+    output = []
+    for i in range(len(texts)):
+        output.append({
+            'text': texts[i],
+            'score': scores[i],
+            'vref': vrefs[i]
+        })
+        
+    return output
+
+def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, backtranslate=False):
+    """Build a prompt for translation"""
+    if bsb_bible_df is None or bsb_bible_df.empty or macula_df is None or macula_df.empty: # build bsb_bible_df and macula_df only if not supplied (saves overhead)
+        bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code=target_language_code)
+    if source_language_code:
+        _, _, source_df = get_dataframes(target_language_code=source_language_code)
+    else:
+        source_df = bsb_bible_df
+    
+    """Example prompt
+    
+    Translate the following sentence pairs into the target language
+    Greek/Hebrew Source: כִּֽי־ יִתֵּן֩ אִ֨ישׁ אֶל־ רֵעֵ֜הוּ כֶּ֤סֶף אֽוֹ־ כֵלִים֙ לִשְׁמֹ֔ר וְגֻנַּ֖ב מִבֵּ֣ית הָאִ֑ישׁ אִם־ יִמָּצֵ֥א הַגַּנָּ֖ב 
+    English Reference: If a fire breaks out and spreads to thornbushes so that it consumes stacked or standing grain, or the whole field, the one who started the fire must make full restitution. Target
+    Greek/Hebrew Source: καὶ τότε ἐάν τις ὑμῖν εἴπῃ Ἴδε ὧδε ὁ Χριστός, Ἴδε ἐκεῖ, μὴ πιστεύετε· 
+    English Reference: At that time if anyone says to you, ‘Look, here is the Christ!’ or ‘There He is!’ do not believe it. 
+    Target: Naatu nati ana veya orot yait isa nao, ‘Kwanuw Keriso enan kwa’itin’, o iban ‘Iti ema’am!’ Men kwanitumitum. 
+    Greek/Hebrew Source: Παῦλος δοῦλος Χριστοῦ Ἰησοῦ, κλητὸς ἀπόστολος ἀφωρισμένος εἰς εὐαγγέλιον Θεοῦ, 
+    English Reference: Paul, a servant of Christ Jesus, called to be an apostle, and set apart for the gospel of God— 
+    Target: [end here so model completes prompt with target translation]
+    
+    """
+    print(macula_df.head())
+    
+    # Query the LanceDB table for the most similar verses to the source text (or bsb if source_language_code is None)
+    table_name = source_language_code if source_language_code else 'bsb_bible'
+    query = source_df[source_df['vref']==vref]['content'].values[0]
+    original_language_source = macula_df[macula_df['vref']==vref]['content'].values[0]
+    print(f'Query result: {query}')
+    similar_verses = query_lancedb_table(table_name, query)
+    # similar_verse_vrefs = [verse['vref'] for verse in similar_verses]
+    # print(similar_verse_vrefs)
+    
+    triplets = [get_verse_triplet(similar_verse['vref'], target_language_code, bsb_bible_df, macula_df) for similar_verse in similar_verses]
+    
+    prompt = 'Translate the following sentence pairs into the target language:\n\n'
+    
+    for triplet in triplets:
+        prompt += f'Greek/Hebrew Source: {triplet["bsb"]["content"]}\n'
+        prompt += f'English Reference: {triplet["target"]["content"]}\n'
+        prompt += f'Target: {triplet["target"]["content"]}\n\n'
+
+    # Add the source verse Greek/Hebrew and English reference to the prompt
+    prompt += f'Greek/Hebrew Source: {original_language_source}\n'
+    prompt += f'English Reference: {query}\n\n'
+    prompt += f'Target:\n\n'
+        
+    return prompt
