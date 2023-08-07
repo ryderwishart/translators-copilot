@@ -229,21 +229,28 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     original_language_source = macula_df[macula_df['vref']==vref]['content'].values[0]
     print(f'Query result: {query}')
     similar_verses = query_lancedb_table(table_name, query, limit=number_of_examples)
-    # similar_verse_vrefs = [verse['vref'] for verse in similar_verses]
-    # print(similar_verse_vrefs)
     
     triplets = [get_verse_triplet(similar_verse['vref'], target_language_code, bsb_bible_df, macula_df) for similar_verse in similar_verses]
     
-    prompt = 'Translate the following sentence pairs into the target language:\n\n'
+    # Initialize an empty dictionary to store the JSON objects
+    json_objects = {}
     
     for triplet in triplets:
-        prompt += f'Greek/Hebrew Source: {triplet["macula"]["content"]}\n'
-        prompt += f'English Reference: {triplet["bsb"]["content"]}\n'
-        prompt += f'Target: {triplet["target"]["content"]}\n\n'
-
-    # Add the source verse Greek/Hebrew and English reference to the prompt
-    prompt += f'Greek/Hebrew Source: {original_language_source}\n'
-    prompt += f'English Reference: {query}\n'
-    prompt += f'Target:'
+        # Create a JSON object for each triplet with top-level keys being the VREFs
+        json_objects[triplet["bsb"]["vref"]] = {
+            'Greek/Hebrew Source': triplet["macula"]["content"],
+            'English Reference': triplet["bsb"]["content"],
+            'Target': triplet["target"]["content"]
+        }
+    
+    # Add the source verse Greek/Hebrew and English reference to the JSON objects
+    json_objects[vref] = {
+        'Greek/Hebrew Source': original_language_source,
+        'English Reference': query,
+        'Target': ''
+    }
         
-    return prompt
+    return json_objects
+
+
+# def build_discriminator_evaluation_prompt(
