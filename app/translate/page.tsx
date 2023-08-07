@@ -5,7 +5,17 @@ interface DataProps {
   target_language_code: string;
 }
 
-async function getData(props: DataProps): Promise<string> {
+export interface VerseData {
+  'Greek/Hebrew Source': string;
+  'English Reference': string;
+  Target: string;
+}
+
+export interface VerseDataMap {
+  [vref: string]: VerseData;
+}
+
+async function getData(props: DataProps): Promise<VerseDataMap> {
   const promptRes = await fetch(
     `http://localhost:3000/api/translation-prompt-builder?vref=${encodeURIComponent(
       props.vref,
@@ -17,15 +27,15 @@ async function getData(props: DataProps): Promise<string> {
   }
 
   // Await the json() method to get the actual data
-  const promptString: string = await promptRes.json();
+  const promptObject: VerseDataMap = await promptRes.json();
 
-  // console.log({ promptString });
-  return promptString;
+  console.log({ promptObject });
+  return promptObject;
 }
 
 export default async function Page() {
   const prompt = await getData({
-    vref: 'ROM 1:6',
+    vref: 'ROM 1:7',
     target_language_code: 'aai',
   });
 
