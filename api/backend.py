@@ -18,6 +18,19 @@ def get_dataframes(target_language_code=None):
     else:
         return bsb_bible_df, macula_df
 
+def get_vref_list(book_abbreviation=None):
+    vref_url = 'https://raw.githubusercontent.com/BibleNLP/ebible/main/metadata/vref.txt'
+    if not os.path.exists('data/vref.txt'):
+        os.system(f'wget {vref_url} -O data/vref.txt')
+
+    with open('data/vref.txt', 'r') as f:
+        
+        if book_abbreviation:
+            return [i.strip() for i in f.readlines() if i.startswith(book_abbreviation)]
+        
+        else:
+            return list(set([i.strip().split(' ')[0] for i in f.readlines()]))
+
 def get_target_vref_df(language_code, drop_empty_verses=False):
     """Get target language data by language code"""
     if not len(language_code) == 3:
@@ -201,7 +214,7 @@ def query_lancedb_table(language_code: str, query: str, limit: str='10'):
         
     return output
 
-def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, backtranslate=False):
+def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False):
     """Build a prompt for translation"""
     if bsb_bible_df is None or bsb_bible_df.empty or macula_df is None or macula_df.empty: # build bsb_bible_df and macula_df only if not supplied (saves overhead)
         bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code=target_language_code)
@@ -210,27 +223,12 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     else:
         source_df = bsb_bible_df
     
-    """Example prompt
-    
-    Translate the following sentence pairs into the target language
-    Greek/Hebrew Source: כִּֽי־ יִתֵּן֩ אִ֨ישׁ אֶל־ רֵעֵ֜הוּ כֶּ֤סֶף אֽוֹ־ כֵלִים֙ לִשְׁמֹ֔ר וְגֻנַּ֖ב מִבֵּ֣ית הָאִ֑ישׁ אִם־ יִמָּצֵ֥א הַגַּנָּ֖ב 
-    English Reference: If a fire breaks out and spreads to thornbushes so that it consumes stacked or standing grain, or the whole field, the one who started the fire must make full restitution. Target
-    Greek/Hebrew Source: καὶ τότε ἐάν τις ὑμῖν εἴπῃ Ἴδε ὧδε ὁ Χριστός, Ἴδε ἐκεῖ, μὴ πιστεύετε· 
-    English Reference: At that time if anyone says to you, ‘Look, here is the Christ!’ or ‘There He is!’ do not believe it. 
-    Target: Naatu nati ana veya orot yait isa nao, ‘Kwanuw Keriso enan kwa’itin’, o iban ‘Iti ema’am!’ Men kwanitumitum. 
-    Greek/Hebrew Source: Παῦλος δοῦλος Χριστοῦ Ἰησοῦ, κλητὸς ἀπόστολος ἀφωρισμένος εἰς εὐαγγέλιον Θεοῦ, 
-    English Reference: Paul, a servant of Christ Jesus, called to be an apostle, and set apart for the gospel of God— 
-    Target: [end here so model completes prompt with target translation]
-    
-    """
-    print(macula_df.head())
-    
     # Query the LanceDB table for the most similar verses to the source text (or bsb if source_language_code is None)
     table_name = source_language_code if source_language_code else 'bsb_bible'
     query = source_df[source_df['vref']==vref]['content'].values[0]
     original_language_source = macula_df[macula_df['vref']==vref]['content'].values[0]
     print(f'Query result: {query}')
-    similar_verses = query_lancedb_table(table_name, query)
+    similar_verses = query_lancedb_table(table_name, query, limit=number_of_examples)
     # similar_verse_vrefs = [verse['vref'] for verse in similar_verses]
     # print(similar_verse_vrefs)
     
@@ -239,13 +237,13 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     prompt = 'Translate the following sentence pairs into the target language:\n\n'
     
     for triplet in triplets:
-        prompt += f'Greek/Hebrew Source: {triplet["bsb"]["content"]}\n'
-        prompt += f'English Reference: {triplet["target"]["content"]}\n'
+        prompt += f'Greek/Hebrew Source: {triplet["macula"]["content"]}\n'
+        prompt += f'English Reference: {triplet["bsb"]["content"]}\n'
         prompt += f'Target: {triplet["target"]["content"]}\n\n'
 
     # Add the source verse Greek/Hebrew and English reference to the prompt
     prompt += f'Greek/Hebrew Source: {original_language_source}\n'
-    prompt += f'English Reference: {query}\n\n'
-    prompt += f'Target:\n\n'
+    prompt += f'English Reference: {query}\n'
+    prompt += f'Target:'
         
     return prompt

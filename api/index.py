@@ -2,9 +2,9 @@ from typing import Union
 import pandas as pd
 from fastapi import FastAPI, BackgroundTasks
 import time
-import os, json
+import os, json, urllib
 import lancedb
-from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database, query_lancedb_table, build_translation_prompt, get_verse_triplet
+from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database, query_lancedb_table, build_translation_prompt, get_verse_triplet, get_vref_list
 from .utils import get_full_book_name, get_book_abbreviation, embed_batch
 from .types import Message, RequestModel
 import requests
@@ -164,4 +164,18 @@ def call_query_endpoint(language_code: str, query: str, limit: str = '10'):
 @app.get("/api/translation-prompt-builder")
 def get_translation_prompt(vref: str, target_language_code: str, source_language_code: str=None, bsb_bible_df=None, macula_df=None):
     """Get a forward-translation few-shot prompt for a given vref, source, and target language code."""
-    return build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df)
+    
+    # Decode URI vref
+    vref = urllib.parse.unquote(vref)
+    print(f'vref: {vref}')
+    return build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=3)
+
+@app.get("/api/vrefs/?book={book}")
+def get_vrefs(book: str):
+    """Get a list of vrefs from the ebible corpus."""
+    return get_vref_list(book)
+
+@app.get("/api/vrefs")
+def get_vrefs():
+    """Get a list of vrefs from the ebible corpus."""
+    return get_vref_list()
