@@ -7,6 +7,10 @@ const nextConfig = {
         destination: "/api/chat"
       },
       {
+        source: "/api/completion",
+        destination: "/api/completion"
+      },
+      {
         source: "/api/:path*",
         destination:
           process.env.NODE_ENV === "development"
