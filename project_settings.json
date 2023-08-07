@@ -1,0 +1,7 @@
+{
+    "database_path": "./lancedb",
+    "stop_strings": [
+        "\n",
+        "Greek/Hebrew"
+    ]
+}
