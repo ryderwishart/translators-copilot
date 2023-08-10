@@ -17,6 +17,8 @@ export default function FewShotPrompt({ prompt }: Props) {
   console.log('in few shot prompt:', { prompt });
 
   const [translationComplete, setTranslationComplete] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState(false);
+  const [promptString, setPromptString] = useState('');
 
   const {
     completion,
@@ -37,22 +39,46 @@ export default function FewShotPrompt({ prompt }: Props) {
     const syntheticEvent = {
       target: document.createElement('input'),
     };
-    syntheticEvent.target.value = prompt;
+
+    const promptExamples = Object.values(prompt).map(
+      (lineGroup: VerseData) => ({
+        'Greek/Hebrew Source': lineGroup['Greek/Hebrew Source'],
+        'English Reference': lineGroup['English Reference'],
+        Target: lineGroup['Target'],
+      }),
+    );
+    // console.log({ promptExamples });
+
+    const effectPromptString =
+      'Translate each of the following source sentences into the target language:\n' +
+      promptExamples
+        .map((example: VerseData) => {
+          return `Source: ${example['Greek/Hebrew Source']}\nEnglish: ${example['English Reference']}\nTarget: ${example['Target']}`;
+        })
+        .join('\n\n');
+    console.log({ promptString });
+    syntheticEvent.target.value = effectPromptString;
+    setPromptString(effectPromptString);
     handleInputChange(syntheticEvent as any);
   }, [prompt, handleInputChange]);
 
   // strip off the first and last quotation marks
-  const renderedLineGroups = Object.values(prompt).map(
-    (lineGroup: VerseData, lineGroupIndex) => (
+  const renderedLineGroups = Object.keys(prompt).map(
+    (key: string, lineGroupIndex) => (
       <span key={lineGroupIndex} className="flex flex-col p-2 gap-1">
-        {Object.values(lineGroup).map((line, lineIndex) =>
-          line === 'Target:' ? null : line.startsWith('Target') ? (
-            <span className="text-sky-600" key={lineIndex}>
-              {line}
-            </span>
+        {key}
+        {Object.keys(prompt[key]).map((lineKey, lineIndex) =>
+          lineKey.startsWith('Target') ? (
+            prompt[key][lineKey] === '' ? null : (
+              <span className="text-sky-600 flex" key={lineIndex}>
+                <span className="basis-1/4">{lineKey}</span>{' '}
+                <span className="flex basis-3/4">{prompt[key][lineKey]}</span>
+              </span>
+            )
           ) : (
-            <span className="" key={lineIndex}>
-              {line}
+            <span className="flex" key={lineIndex}>
+              <span className="text-slate-600 basis-1/4">{lineKey}</span>{' '}
+              <span className="flex basis-3/4">{prompt[key][lineKey]}</span>
             </span>
           ),
         )}
@@ -94,8 +120,11 @@ export default function FewShotPrompt({ prompt }: Props) {
         <div className="flex flex-row gap-3">
           <div className="p-4 rounded bg-slate-200 m-5 text-xs w-1/2">
             {renderedLineGroups}
-            <div className="text-sky-600 mb-4 p-2">
-              Target: <span className="text-orange-600">{completion}</span>
+            <div className="flex text-sky-600 mb-4 p-2">
+              <span className="basis-1/4">Target</span>{' '}
+              <span className="flex basis-3/4 text-orange-600">
+                {completion}
+              </span>
             </div>
 
             <div data-aria-label="Forward translation" className="">
@@ -113,19 +142,30 @@ export default function FewShotPrompt({ prompt }: Props) {
                   />
                 </label>
                 <div className="flex space-x-4 text-sm">
-                  <button
-                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
-                    disabled={isLoading || translationComplete}
-                    type="submit"
-                  >
-                    {translationComplete ? (
-                      <span className="">Translation generated!</span>
-                    ) : isLoading ? (
-                      <span className="">Generating translation...</span>
-                    ) : (
-                      <span className="">Generate translation</span>
+                  <div className="relative">
+                    <button
+                      className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+                      disabled={isLoading || translationComplete}
+                      type="submit"
+                      onMouseEnter={() => setTooltipVisible(true)}
+                      onMouseLeave={() => setTooltipVisible(false)}
+                    >
+                      {translationComplete ? (
+                        <span className="">Translation generated!</span>
+                      ) : isLoading ? (
+                        <span className="">Generating translation...</span>
+                      ) : (
+                        <span className="">Generate translation</span>
+                      )}
+                    </button>
+                    {tooltipVisible && (
+                      <div className="absolute z-10 w-64 p-2 mb-12 text-sm text-white bg-blue-500 rounded shadow-lg">
+                        {promptString}
+                      </div>
                     )}
-                  </button>
+                  </div>
+
+
                   <button
                     className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
                     type="button"
