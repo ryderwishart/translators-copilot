@@ -6,9 +6,9 @@ interface DataProps {
 }
 
 export interface VerseData {
-  'Greek/Hebrew Source': string;
-  'English Reference': string;
-  Target: string;
+  source: string;
+  reference: string;
+  target: string;
 }
 
 export interface VerseDataMap {
@@ -34,8 +34,8 @@ async function getData(props: DataProps): Promise<VerseDataMap> {
 }
 
 export default async function Page() {
-  const prompt = await getData({
-    vref: 'ROM 1:7',
+  const prompt: VerseDataMap = await getData({
+    vref: 'ROM 1:8',
     target_language_code: 'aai',
   });
 
