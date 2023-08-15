@@ -1,12 +1,13 @@
-from typing import Union
+from typing import Union, List
 import pandas as pd
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, Query, WebSocket, WebSocketDisconnect
 import time
 import os, json, urllib
 import lancedb
-from .backend import get_target_vref_df, get_dataframes, create_lancedb_table_from_df, load_database, get_table_from_database, query_lancedb_table, build_translation_prompt, get_verse_triplet, get_vref_list
+from pydantic import BaseModel
+from . import backend
 from .utils import get_full_book_name, get_book_abbreviation, embed_batch
-from .types import Message, RequestModel
+from .types import Message, RequestModel, TranslationTriplet
 import requests
 import logging
 
@@ -15,7 +16,7 @@ logger = logging.getLogger('uvicorn')
 app = FastAPI()
 
 
-bsb_bible_df, macula_df = get_dataframes() # Store these in global state
+bsb_bible_df, macula_df = backend.get_dataframes() # Store these in global state
 
 @app.get("/api/python")
 def read_root():
@@ -69,7 +70,7 @@ def read_macula_verse_item(full_verse_ref: str):
 # get a single verse with source text and gloss, bsb english, and target language
 @app.get("/api/verse/{full_verse_ref}&{language_code}")
 def get_verse(full_verse_ref: str, language_code: str):
-    return get_verse_triplet(full_verse_ref, language_code, bsb_bible_df, macula_df)
+    return backend.get_verse_triplet(full_verse_ref, language_code, bsb_bible_df, macula_df)
 
 # get the entire bible with source text and gloss, bsb english, and target language
 @app.get("/api/bible/{language_code}")
@@ -82,7 +83,7 @@ def get_bible(language_code: str):
     e.g., http://localhost:3000/api/bible/aai
     """
     
-    target_vref_df = get_target_vref_df(language_code)
+    target_vref_df = backend.get_target_vref_df(language_code)
     
     output = []
     for i in range(len(bsb_bible_df)):
@@ -149,16 +150,16 @@ def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
     
     if target_language_code.startswith('init'): # To initialize databases
         logger.info('Initializing Greek/Hebrew and English vectorstores...')
-        background_tasks.add_task(create_lancedb_table_from_df, bsb_bible_df, 'bsb_bible') # load_database loads up the macula and bsb tables by default if they don't exist... Probably should make this less magical in the future
+        background_tasks.add_task(backend.create_lancedb_table_from_df, bsb_bible_df, 'bsb_bible') # load_database loads up the macula and bsb tables by default if they don't exist... Probably should make this less magical in the future
         return {"status": "Database initialization started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
     
     logger.info('Populating database...')
-    background_tasks.add_task(load_database, target_language_code)
+    background_tasks.add_task(backend.load_database, target_language_code)
     return {"status": "Database population started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
 
 @app.get("/api/query/{language_code}/{query}&limit={limit}")
 def call_query_endpoint(language_code: str, query: str, limit: str = '10'):
-    return query_lancedb_table(language_code, query, limit=limit)
+    return backend.query_lancedb_table(language_code, query, limit=limit)
 
 # User should be able to submit vref + source language + target language to a /api/translation-prompt-builder/ endpoint
 @app.get("/api/translation-prompt-builder")
@@ -168,14 +169,14 @@ def get_translation_prompt(vref: str, target_language_code: str, source_language
     # Decode URI vref
     vref = urllib.parse.unquote(vref)
     print(f'vref: {vref}')
-    return build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=3)
+    return backend.build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=3)
 
 @app.get("/api/vrefs/?book={book}")
 def get_vrefs(book: str):
     """Get a list of vrefs from the ebible corpus."""
-    return get_vref_list(book)
+    return backend.get_vref_list(book)
 
 @app.get("/api/vrefs")
 def get_vrefs():
     """Get a list of vrefs from the ebible corpus."""
-    return get_vref_list()
+    return backend.get_vref_list()
