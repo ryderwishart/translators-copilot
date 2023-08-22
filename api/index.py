@@ -180,3 +180,55 @@ def get_vrefs(book: str):
 def get_vrefs():
     """Get a list of vrefs from the ebible corpus."""
     return backend.get_vref_list()
+
+@app.get("/api/unique_tokens")
+def get_unique_tokens(language_code: str):
+    print(f'language_code: {language_code}')
+    """Get a list of unique tokens from the ebible corpus texts by language code."""
+    return backend.get_unique_tokens_for_language(language_code)
+
+
+class EvaluateTranslationRequest(BaseModel):
+    verse_triplets: dict[str, TranslationTriplet]
+    hypothesis_vref: str
+
+@app.post("/api/evaluate")
+def evaluate_translation_prompt(request: EvaluateTranslationRequest):
+    verse_triplets = request.verse_triplets
+    hypothesis_vref = request.hypothesis_vref
+
+    valid_vrefs = backend.get_vref_list(hypothesis_vref.split(' ')[0])
+    
+    print(f'valid_vrefs: {valid_vrefs[:10]}')
+    if hypothesis_vref not in valid_vrefs:
+        return {"status": f"You submitted vref {hypothesis_vref}, but this vref is not in the ebible corpus. See https://raw.githubusercontent.com/BibleNLP/ebible/main/metadata/vref.txt for valid vrefs."}
+    
+    prediction = backend.execute_discriminator_evaluation(verse_triplets, hypothesis_vref=hypothesis_vref)
+    
+    return {"input_received": verse_triplets, "hypothesis_vref": hypothesis_vref, "prediction": prediction}
+
+@app.get("/api/evaluate_test")
+def evaluate_translation_prompt_test():
+    verse_triplets = {"ACT 13:47":{"Greek/Hebrew Source":"οὕτως γὰρ ἐντέταλται ἡμῖν ὁ Κύριος Τέθεικά σε εἰς φῶς ἐθνῶν τοῦ εἶναί σε εἰς σωτηρίαν ἕως ἐσχάτου τῆς γῆς.","English Reference":"For this is what the Lord has commanded us: ‘I have made you a light for the Gentiles, to bring salvation to the ends of the earth.’”","Target":"Anayabin Regah ana obaiyunen tur biti iti na’atube eo, ‘Ayu kwa ayasairi Ufun Sabuw hai marakaw isan, saise kwa i boro yawas kwanab kwanatit kwanan tafaram yomanin kwanatit.’"},"ACT 3:20":{"Greek/Hebrew Source":"ὅπως ἂν ἔλθωσιν καιροὶ ἀναψύξεως ἀπὸ προσώπου τοῦ Κυρίου καὶ ἀποστείλῃ τὸν προκεχειρισμένον ὑμῖν Χριστὸν Ἰησοῦν,","English Reference":"that times of refreshing may come from the presence of the Lord, and that He may send Jesus, the Christ, who has been appointed for you.","Target":"Nati namamatar ana veya, imaibo ayub ana fair bain baiboubun isan boro Regah wanawananamaim nan biya natit. Jesu, i ana Roubinineyan orot marasika kwa isa rurubin boro niyafar."},"LAM 2:13":{"Greek/Hebrew Source":"מָ֣ה אֲדַמֶּה־ לָּ֗ךְ הַבַּת֙ יְר֣וּשָׁלִַ֔ם מָ֤ה אַשְׁוֶה־ לָּךְ֙ וַאֲנַֽחֲמֵ֔ךְ בְּתוּלַ֖ת בַּת־ צִיּ֑וֹן כִּֽי־ גָד֥וֹל כַּיָּ֛ם שִׁבְרֵ֖ךְ מִ֥י יִרְפָּא־ לָֽךְ׃ס","English Reference":"What can I say for you? To what can I compare you, O Daughter of Jerusalem? To what can I liken you, that I may console you, O Virgin Daughter of Zion? For your wound is as deep as the sea. Who can ever heal you?","Target":""},"ROM 1:8":{"Greek/Hebrew Source":"Πρῶτον μὲν εὐχαριστῶ τῷ Θεῷ μου διὰ Ἰησοῦ Χριστοῦ περὶ πάντων ὑμῶν, ὅτι ἡ πίστις ὑμῶν καταγγέλλεται ἐν ὅλῳ τῷ κόσμῳ.","English Reference":"First, I thank my God through Jesus Christ for all of you, because your faith is being proclaimed all over the world.","Target":"This is the hypothesized verse translation."}}
+    verse_triplets: dict[str, TranslationTriplet] = { k: TranslationTriplet(**v) for k, v in verse_triplets.items() }
+    # return {"status": "Evaluation prompted", "input_received": verse_triplets, "hypothesis_vref": None, "hypothesis_key": None}
+    return backend.execute_discriminator_evaluation(verse_triplets, hypothesis_vref='ROM 1:8')
+  
+# @app.websocket("/api/test_feedback_loop")
+# async def test_feedback_loop(websocket: WebSocket, vref: str = Query(...), target_language_code: str = Query(...), source_language_code: str = Query(None)):
+#     await websocket.accept()
+#     feedback_loop = backend.AILoop(
+#         iterations=10,
+#         function_a=lambda: backend.execute_fewshot_translation(vref, target_language_code, source_language_code),
+#         function_b=backend.execute_discriminator_evaluation,
+#     )
+#     for result in feedback_loop:
+#         await websocket.send_json(result)
+#     await websocket.close()
+
+@app.get('/api/translate')
+def forward_translation_request(vref: str, target_language_code: str):
+    # return True
+    
+    translation = backend.Translation(vref, target_language_code=target_language_code)
+    return str({'hypothesis': translation.get_hypothesis(), 'feedback': translation.get_feedback()})
