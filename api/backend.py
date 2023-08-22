@@ -336,3 +336,21 @@ def execute_discriminator_evaluation(verse_triplets: dict[str, TranslationTriple
     
     return response.json()
 
+def execute_fewshot_translation(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False) -> ChatResponse:
+    prompt = build_translation_prompt(vref, target_language_code, source_language_code, bsb_bible_df, macula_df, number_of_examples, backtranslate)
+    url = f"{machine}/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messages": [
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.7,
+        "max_tokens": -1,
+        "stream": False,
+    }
+    response = requests.post(url, json=payload, headers=headers)
+    print('>>>>>>>>>>', response.text)
+    return response.json()
+
