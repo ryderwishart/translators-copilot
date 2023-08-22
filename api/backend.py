@@ -354,3 +354,27 @@ def execute_fewshot_translation(vref, target_language_code, source_language_code
     print('>>>>>>>>>>', response.text)
     return response.json()
 
+class Translation():
+    """Translations differ from revisions insofar as revisions require an existing draft of the target"""
+    
+    def __init__(self, vref: str, target_language_code: str, number_of_examples=3, should_backtranslate=False):
+        self.vref = vref
+        self.target_language_code = target_language_code
+        self.number_of_examples = number_of_examples
+        self.should_backtranslate = should_backtranslate
+        
+        bsb_bible_df, macula_df = get_dataframes()
+        self.verse = get_verse_triplet(full_verse_ref=self.vref, language_code=self.target_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df)
+        self.vref_triplets = build_translation_prompt(vref, target_language_code)
+        # Predict translation
+        self.hypothesis: ChatResponse = execute_fewshot_translation(vref, target_language_code, source_language_code=None, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=3, backtranslate=False)
+        # Get feedback on the translation
+        # NOTE: here is where various evaluation functions could be swapped out
+        self.feedback: ChatResponse = execute_discriminator_evaluation(self.vref_triplets, self.vref)
+
+    def get_hypothesis(self):
+        return self.hypothesis
+    
+    def get_feedback(self):
+        return self.feedback
+
