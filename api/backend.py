@@ -1,8 +1,21 @@
 import os, time
 import pandas as pd
+import numpy as np
+# get counter
+from collections import Counter
 from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
+from .types import TranslationTriplet, ChatResponse, VerseMap, AIResponse
+from pydantic import BaseModel, Field
+from typing import Any, List, Optional, Callable
+from random import shuffle
+import requests
+import guidance
+
 import logging
 logger = logging.getLogger('uvicorn')
+
+machine = 'http://192.168.1.76:8081'
+
 
 def get_dataframes(target_language_code=None):
     """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
@@ -192,7 +205,7 @@ def get_verse_triplet(full_verse_ref: str, language_code: str, bsb_bible_df, mac
 
 def query_lancedb_table(language_code: str, query: str, limit: str='10'):
     """Get similar sentences from a LanceDB table."""
-    limit = int(limit) # I don't know if this is necessary. The FastAPI endpoint might infer an int from the query param if I typed it that way
+    # limit = int(limit) # I don't know if this is necessary. The FastAPI endpoint might infer an int from the query param if I typed it that way
     table = get_table_from_database(language_code)
     query_vector = embed_batch([query])[0]
     if not table:
@@ -214,7 +227,7 @@ def query_lancedb_table(language_code: str, query: str, limit: str='10'):
         
     return output
 
-def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False):
+def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False) -> dict[str, TranslationTriplet]:
     """Build a prompt for translation"""
     if bsb_bible_df is None or bsb_bible_df.empty or macula_df is None or macula_df.empty: # build bsb_bible_df and macula_df only if not supplied (saves overhead)
         bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code=target_language_code)
@@ -233,24 +246,22 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     triplets = [get_verse_triplet(similar_verse['vref'], target_language_code, bsb_bible_df, macula_df) for similar_verse in similar_verses]
     
     # Initialize an empty dictionary to store the JSON objects
-    json_objects = {}
+    json_objects: dict[str, TranslationTriplet] = dict()
     
     for triplet in triplets:
         # Create a JSON object for each triplet with top-level keys being the VREFs
-        json_objects[triplet["bsb"]["vref"]] = {
-            'Greek/Hebrew Source': triplet["macula"]["content"],
-            'English Reference': triplet["bsb"]["content"],
-            'Target': triplet["target"]["content"]
-        }
+        json_objects[triplet["bsb"]["vref"]] = TranslationTriplet(
+            source=triplet["macula"]["content"],
+            bridge_translation=triplet["bsb"]["content"],
+            target=triplet["target"]["content"]
+        ).to_dict()
     
     # Add the source verse Greek/Hebrew and English reference to the JSON objects
-    json_objects[vref] = {
-        'Greek/Hebrew Source': original_language_source,
-        'English Reference': query,
-        'Target': ''
-    }
+    json_objects[vref] = TranslationTriplet(
+        source=original_language_source,
+        bridge_translation=query,
+        target=''
+    ).to_dict()
         
     return json_objects
 
-
-# def build_discriminator_evaluation_prompt(
