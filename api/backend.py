@@ -226,6 +226,22 @@ def query_lancedb_table(language_code: str, query: str, limit: str='10'):
         })
         
     return output
+    
+def get_unique_tokens_for_language(language_code):
+    """Get unique tokens for a language"""
+    tokens_to_ignore = ['']
+    
+    if language_code == 'bsb' or language_code =='bsb_bible':
+        df, _, _ = get_dataframes()
+    elif language_code =='macula':
+        _, df, _ = get_dataframes()
+    else:
+        _, _, df = get_dataframes(target_language_code=language_code)
+        
+    target_tokens = df['content'].apply(lambda x: x.split(' ')).explode().tolist()
+    target_tokens = [token for token in target_tokens if token not in tokens_to_ignore]
+    unique_tokens = Counter(target_tokens)
+    return unique_tokens
 
 def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False) -> dict[str, TranslationTriplet]:
     """Build a prompt for translation"""
