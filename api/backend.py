@@ -281,3 +281,58 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
         
     return json_objects
 
+
+def execute_discriminator_evaluation(verse_triplets: dict[str, TranslationTriplet], hypothesis_vref: str, hypothesis_key='target') -> ChatResponse:
+    """
+    Accepts an array of verses as verse_triplets.
+    The final triplet is assumed to be the hypothesis.
+    The hypothesis string is assumed to be the target language rendering.
+    
+    This simple discriminator type of evaluation scrambles the input verse_triplets
+    and prompts the LLM to detect which is the hypothesis.
+    
+    The return value is:
+    {
+        'y_index': index_of_hypothesis,
+        'y_hat_index': llm_predicted_index,
+        'rationale': rationale_string,
+    }
+    
+    If you introduce any intermediate translation steps (e.g., leaving unknown tokens untranslated),
+    then this type of evaluation is not recommended.
+    """
+    hypothesis_triplet = verse_triplets[hypothesis_vref]
+    print(f'Hypothesis: {hypothesis_triplet}')
+    
+    verse_triplets_list: list[tuple] = list(verse_triplets.items())
+    
+    print('Verse triplets keys:', [k for k, v in verse_triplets_list])
+    # # Shuffle the verse_triplets
+    shuffle(verse_triplets_list)
+    print(f'Shuffled verse triplets keys: {[k for k, v in verse_triplets_list]}')
+    
+    # # Build the prompt
+    prompt = ''
+    for i, triplet in enumerate(verse_triplets_list):
+        print(f'Verse triplet {i}: {triplet}')
+        prompt += f'\n{triplet[0]}. Target: {triplet[1]["target"]}'
+
+    print(f'Final prompt: {prompt}')
+    url = f"{machine}/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "messages": [
+            # FIXME: I think I should just ask the model to designate which verse stands out as the least likely to be correct.
+            {"role": "user", "content": f"### Instruction: One of these translations is incorrect, and you can only try to determine by comparing the examples given:\n{prompt}\nWhich one of these is incorrect? (show only '[put verse ref here] -- rationale as to why you picked this one relative only to the other options')\n###Response:"}
+        ],
+        "temperature": 0.7,
+        "max_tokens": -1,
+        "stream": False,
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    
+    return response.json()
+
