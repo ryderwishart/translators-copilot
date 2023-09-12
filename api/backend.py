@@ -243,7 +243,7 @@ def get_unique_tokens_for_language(language_code):
     unique_tokens = Counter(target_tokens)
     return unique_tokens
 
-def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=3, backtranslate=False) -> dict[str, TranslationTriplet]:
+def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=10, backtranslate=False) -> dict[str, TranslationTriplet]:
     """Build a prompt for translation"""
     if bsb_bible_df is None or bsb_bible_df.empty or macula_df is None or macula_df.empty: # build bsb_bible_df and macula_df only if not supplied (saves overhead)
         bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code=target_language_code)
@@ -257,7 +257,7 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     query = source_df[source_df['vref']==vref]['content'].values[0]
     original_language_source = macula_df[macula_df['vref']==vref]['content'].values[0]
     print(f'Query result: {query}')
-    similar_verses = query_lancedb_table(table_name, query, limit=number_of_examples)
+    similar_verses = query_lancedb_table(table_name, query, limit=number_of_examples) # FIXME: query 50 and then filter to first n that have target content?
     
     triplets = [get_verse_triplet(similar_verse['vref'], target_language_code, bsb_bible_df, macula_df) for similar_verse in similar_verses]
     
@@ -269,7 +269,7 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
         json_objects[triplet["bsb"]["vref"]] = TranslationTriplet(
             source=triplet["macula"]["content"],
             bridge_translation=triplet["bsb"]["content"],
-            target=triplet["target"]["content"]
+            target=triplet["target"]["content"] # FIXME: validate that content exists here?
         ).to_dict()
     
     # Add the source verse Greek/Hebrew and English reference to the JSON objects
