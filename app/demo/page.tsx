@@ -25,8 +25,8 @@ export default function Page() {
   const [formLanguageCode, setFormLanguageCode] = useState('bsb_bible');
   const [sourceLanguageCode, setSourceLanguageCode] = useState('bsb_bible');
 
-  const [formTargetLanguageCode, setFormTargetLanguageCode] = useState('aai');
-  const [targetLanguageCode, setTargetLanguageCode] = useState('aai');
+  const [formTargetLanguageCode, setFormTargetLanguageCode] = useState('amo');
+  const [targetLanguageCode, setTargetLanguageCode] = useState('amo');
 
   const [formVerseRef, setFormVerseRef] = useState('ROM 1:1');
   const [verseRef, setVerseRef] = useState('ROM 1:1');

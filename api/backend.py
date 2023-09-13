@@ -36,7 +36,7 @@ def get_vref_list(book_abbreviation=None):
     if not os.path.exists('data/vref.txt'):
         os.system(f'wget {vref_url} -O data/vref.txt')
 
-    with open('data/vref.txt', 'r') as f:
+    with open('data/vref.txt', 'r', encoding="utf8") as f:
         
         if book_abbreviation:
             return [i.strip() for i in f.readlines() if i.startswith(book_abbreviation)]
@@ -61,7 +61,9 @@ def get_target_vref_df(language_code, drop_empty_verses=False):
         except:
             return 'No data found for language code. Please check the eBible repo for available data.'
 
-    with open(path, 'r') as f:
+    print(os.listdir())
+
+    with open(path, 'r', encoding="utf8") as f:
         target_text = f.readlines()
         target_text = [i.strip() for i in target_text]
 
@@ -69,7 +71,7 @@ def get_target_vref_df(language_code, drop_empty_verses=False):
     if not os.path.exists('data/vref.txt'):
         os.system(f'wget {vref_url} -O data/vref.txt')
 
-    with open('data/vref.txt', 'r') as f:
+    with open('data/vref.txt', 'r', encoding="utf8") as f:
         target_vref = f.readlines()
         target_vref = [i.strip() for i in target_vref]
 
@@ -87,7 +89,7 @@ from pandas import DataFrame as DataFrameClass
 def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_name='content'):
     """Turn a pandas dataframe into a LanceDB table."""
     start_time = time.time()
-    logger.info('Creating LanceDB table...', color='green')
+    logger.info('Creating LanceDB table...')
     import lancedb
     from lancedb.embeddings import with_embeddings
     
@@ -112,8 +114,8 @@ def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_
         # If it doesn't exist, create it
         
         df_filtered = df[df['text'].str.strip() != '']
-        data = with_embeddings(embed_batch, df_filtered.sample(10000)) # FIXME: I can't process the entirety of the bsb bible for some reason. Something is corrupt or malformed in the data perhaps
-        # data = with_embeddings(embed_batch, df_filtered) 
+        # data = with_embeddings(embed_batch, df_filtered.sample(1000)) # FIXME: I can't process the entirety of the bsb bible for some reason. Something is corrupt or malformed in the data perhaps
+        data = with_embeddings(embed_batch, df_filtered) 
 
         # data = with_embeddings(embed_batch, df)
         
@@ -214,14 +216,14 @@ def query_lancedb_table(language_code: str, query: str, limit: str='10'):
     if not result.values():
         return []
     texts = result['text']
-    scores = result['score']
+    scores = ['score']
     vrefs = result['vref']
     
     output = []
     for i in range(len(texts)):
         output.append({
             'text': texts[i],
-            'score': scores[i],
+            'score': ['score'], # scores[i]
             'vref': vrefs[i]
         })
         
