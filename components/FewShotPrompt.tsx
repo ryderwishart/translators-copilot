@@ -66,6 +66,7 @@ export default function FewShotPrompt({ prompt }: Props) {
     syntheticEvent.target.value = effectPromptString;
     setPromptString(effectPromptString);
     handleInputChange(syntheticEvent as any);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt, handleInputChange]);
 
   // strip off the first and last quotation marks

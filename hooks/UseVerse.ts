@@ -1,13 +1,9 @@
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/utils';
+import { useEffect, useState } from 'react';
 
-type VerseResponse = {
-    data: {
-        bsb: VerseObject,
-        macula: VerseObject,
-        target: VerseObject,
-    }
-    error: any;
+type VerseData = {
+    bsb: VerseObject,
+    macula: VerseObject,
+    target: VerseObject,
 }
 
 type VerseObject = {
@@ -23,15 +19,29 @@ type Props = {
 
 export default function useVerse({ verseRef, targetLanguageCode }: Props) {
 
-    const { data: verseData, error: verseError }: VerseResponse = useSWR(
-        `http://localhost:3000/api/verse/${encodeURIComponent(
-            verseRef,
-        )}&${targetLanguageCode}`,
-        swrFetcher,
-    );
+    const [verseData, setVerseData] = useState<VerseData | null>(null);
+    const [verseError, setVerseError] = useState<any>(null);
 
-    return (!verseRef || !targetLanguageCode)
-        ? { verseData: null, verseError: null }
-        : { verseData, verseError };
+    useEffect(() => {
+        if (targetLanguageCode && verseRef) {
+            const fetchQuery = async () => {
+                const response = await fetch(
+                    `http://localhost:3000/api/verse/${encodeURIComponent(
+                        verseRef,
+                    )}&${targetLanguageCode}`,
+                );
+                if (!response.ok) {
+                    setVerseError(response.statusText);
+                } else {
+                    const data: VerseData = await response.json();
+                    console.log(data);
+                    setVerseData(data);
+                }
+            }
+            fetchQuery();
+        }
+    }, [targetLanguageCode, verseRef]);
+
+    return { verseData, verseError };
 }
 

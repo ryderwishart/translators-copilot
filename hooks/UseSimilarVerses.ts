@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import useQuery, { QueryObject } from './UseQuery';
+import useQuery from './UseQuery';
+import { QueryObject } from "@/lib/types";
 
 type Props = {
     input: string;

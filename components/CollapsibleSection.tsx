@@ -28,7 +28,7 @@ export default function SimilarVersesTable({ headerText, children, preventCollap
                 }
                 <h1 className="font-bold text-2xl">{headerText}</h1>
             </div>
-            {showDetails && children}
+            {showDetails && <div className="mx-8">{children}</div>}
         </div>
     )
 }

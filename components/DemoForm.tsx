@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input"
 import { useForm } from 'react-hook-form';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import CollapsibleSection from './CollapsibleSection';
+import { QueryObject } from '@/lib/types';
 
 const formSchema = z.object({
     searchCriteria: z.string({
@@ -32,23 +33,103 @@ const formSchema = z.object({
     }),
 })
 
+export type VerseData = {
+    bsb: {
+        verse_number: number;
+        vref: string;
+        content: string;
+    },
+    macula: {
+        verse_number: number;
+        vref: string;
+        content: string;
+    },
+    target: {
+        verse_number: number;
+        vref: string;
+        content: string;
+    },
+}
+
 type Props = {
+    setVerseData: Dispatch<SetStateAction<VerseData | undefined>>;
+    setSimilarVerses: Dispatch<SetStateAction<QueryObject[] | undefined>>;
     setSearchCriteria: Dispatch<SetStateAction<string>>;
     setSourceLanguageCode: Dispatch<SetStateAction<string>>;
     setTargetLanguageCode: Dispatch<SetStateAction<string>>;
     setVerseRef: Dispatch<SetStateAction<string>>;
 }
 
-export default function DemoForm({ setSearchCriteria, setSourceLanguageCode, setTargetLanguageCode, setVerseRef }: Props) {
+export default function DemoForm({
+    setVerseData,
+    setSimilarVerses,
+    setSearchCriteria,
+    setSourceLanguageCode,
+    setTargetLanguageCode,
+    setVerseRef,
+}: Props) {
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
+        reValidateMode: "onSubmit",
     })
 
     function onSubmit(values: z.infer<typeof formSchema>) {
-        setSearchCriteria(values.searchCriteria)
-        setSourceLanguageCode(values.sourceLanguageCode)
-        setTargetLanguageCode(values.targetLanguageCode)
-        setVerseRef(values.verseRef)
+        const {
+            sourceLanguageCode,
+            targetLanguageCode,
+            verseRef,
+            searchCriteria
+        } = values;
+
+        setSearchCriteria(searchCriteria)
+        setSourceLanguageCode(sourceLanguageCode)
+        setTargetLanguageCode(targetLanguageCode)
+        setVerseRef(verseRef)
+
+        const fetchQuery = async () => {
+            const verseResponse = await fetch(
+                `http://localhost:3000/api/verse/${encodeURIComponent(
+                    verseRef,
+                )}&${targetLanguageCode}`,
+            );
+            const verseData = await verseResponse.json();
+            setVerseData(verseData ? verseData : undefined);
+
+            const queryResponse = await fetch(
+                `http://localhost:3000/api/query/${sourceLanguageCode}/${searchCriteria}&limit=50`,
+            );
+            const queryData = await queryResponse.json();
+            if (queryData) {
+                const fetchVerses = async () => {
+                    const updatedVerses: QueryObject[] = await Promise.all(
+                        queryData.map(async (example: QueryObject) => {
+                            const response = await fetch(
+                                `http://localhost:3000/api/verse/${encodeURIComponent(
+                                    example.vref,
+                                )}&${targetLanguageCode}`,
+                            );
+                            const verseForExample = await response.json();
+                            const verseHasTarget = verseForExample.target.content !== '';
+                            return verseHasTarget ? {
+                                ...example,
+                                target: verseForExample.target.content,
+                                bsb: verseForExample.bsb.content,
+                                macula: verseForExample.macula.content,
+                            } : null;
+                        }),
+                    );
+
+                    // Once we get here, we have an array of all similar verses, with null items where there were no targets
+                    // so we need to filter out the null items
+                    const examplesWithTargets = updatedVerses.filter(x => x !== null);
+                    setSimilarVerses(examplesWithTargets);
+                };
+
+                fetchVerses();
+            }
+        }
+
+        fetchQuery();
     }
 
     return (

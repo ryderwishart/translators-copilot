@@ -1,52 +1,79 @@
 'use client';
 import CollapsibleSection from './CollapsibleSection';
-import { QueryObject } from '@/hooks/UseQuery';
+import { QueryObject } from '@/lib/types';
 import { Button } from './ui/button';
+import { useEffect, useState } from 'react';
 
 interface Props {
-    similarVerses: QueryObject[];
+    similarVerses: QueryObject[] | undefined;
     targetLanguageCode: string;
     sourceLanguageCode: string;
     sourceVerse: {
-        vref: string;
-        text: string;
-        bsb: {
+        vref: string | undefined;
+        text: string | undefined;
+        bsb?: {
             content: string;
+            verse_number: number;
+            vref: string;
         };
-        macula: {
+        macula?: {
             content: string;
+            verse_number: number;
+            vref: string;
         };
         target?: {
             content: string; // NOTE: may be available for reference, but will not be available for untranslated verses
+            verse_number: number;
+            vref: string;
         };
     };
 }
 
 export default function PromptGenerator(props: Props) {
     const prompt = generatePrompt(props);
-    console.log(prompt);
+    const [showCopiedText, setShowCopiedText] = useState<boolean>(false);
+
+    // WE CAN EXPLORE WHAT IT MIGHT LOOK LIKE TO HAVE THE USER SELECT THE SPECIFIC EXAMPLES TO GENERATE THE PROMPT FROM
+    // I.E. HAVING CHECKBOXES IN THE TABLE THAT WILL ADD THEM TO A LIST OF EXAMPLES TO INCLUDE IN THE PROMPT
+
+    useEffect(() => {
+        let id = setTimeout(() => {
+            setShowCopiedText(false)
+        }, 1000)
+
+        return () => {
+            clearTimeout(id);
+        }
+    }, [showCopiedText])
+
+    if (!props.sourceVerse.vref) return null;
+    
     return (
-        <CollapsibleSection headerText="Prompt Generator">
+        <CollapsibleSection headerText="Prompt generator">
             <p>The following is a generated prompt that you can copy and paste into the chat below:</p>
             <div className="border-2 rounded-md p-4">
                 <p>Translate the following sentence pairs into the target language:</p>
                 <br />
-                {props.similarVerses?.slice(0, 2).map((similarVerse) =>
+                {props.similarVerses?.slice(0, 4).map((similarVerse) =>
                     similarVerse?.macula && similarVerse?.bsb && (
                         <div key={similarVerse.vref}>
                             <p>Greek/Hebrew Source: {similarVerse.macula}</p>
-                            <p>English Reference: {similarVerse.bsb}</p>
-                            <p>Target: {similarVerse.target}</p>
+                            <p>English Source: {similarVerse.bsb}</p>
+                            <p>Target ({props.targetLanguageCode}): {similarVerse.target}</p>
                             <br />
                         </div>
                     )
                 )}
                 <div>
-                    <p>Greek/Hebrew Source: {props.sourceVerse.macula.content}</p>
-                    <p>English Reference: {props.sourceVerse.bsb.content}</p>
-                    <p>Target:</p>
+                    <p>Deduce the target given the next sentence pair based on the above examples.</p>
+                    <p>Greek/Hebrew Source: {props.sourceVerse.macula?.content}</p>
+                    <p>English Source: {props.sourceVerse.bsb?.content}</p>
+                    <p>Target ({props.targetLanguageCode}): </p>
                 </div>
-                <Button className="mt-4" onClick={() => copyTextToClipboard(prompt)}>Copy Prompt</Button>
+                <Button className="mt-4 w-[150px]" disabled={showCopiedText} onClick={() => {
+                    setShowCopiedText(true);
+                    copyTextToClipboard(prompt)
+                }}>{showCopiedText ? "Copied!" : "Copy Prompt"}</Button>
             </div>
         </CollapsibleSection>
     )
@@ -54,16 +81,17 @@ export default function PromptGenerator(props: Props) {
 
 const generatePrompt = (props: Props) => {
     const sourceVerseForPrompt = [
-        `Greek/Hebrew Source: ${props.sourceVerse.macula.content}`,
-        `English Reference: ${props.sourceVerse.bsb.content}`,
-        `Target:`, // FIXME: add full target language name, not just the target language code
+        `# Deduce the target given the next sentence pair based on the above examples.`,
+        `### Greek/Hebrew Source: ${props.sourceVerse.macula?.content}`,
+        `### English Source: ${props.sourceVerse.bsb?.content}`,
+        `### Target (${props.targetLanguageCode}):`, // FIXME: add full target language name, not just the target language code
     ].join('\n');
 
-    return (`Translate the following sentence pairs into the target language:\n\n` +
-        props.similarVerses?.slice(0, 2).map((similarVerse) =>
-            `Greek/Hebrew Source: ${similarVerse.macula}\n` +
-            `English Reference: ${similarVerse.bsb}\n` +
-            `Target: ${similarVerse.target}\n`,
+    return (`# Translate the following sentence pairs into the target language:\n\n` +
+        props.similarVerses?.slice(0, 4).map((similarVerse) =>
+            `### Greek/Hebrew Source: ${similarVerse.macula}\n` +
+            `### English Source: ${similarVerse.bsb}\n` +
+            `### Target (${props.targetLanguageCode}): ${similarVerse.target}\n`,
         ).join('\n') + '\n\n' + sourceVerseForPrompt
     )
 

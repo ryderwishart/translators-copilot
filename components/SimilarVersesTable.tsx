@@ -6,18 +6,18 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { QueryObject } from "@/hooks/UseQuery";
+import { QueryObject } from "@/lib/types";
 import CollapsibleSection from "./CollapsibleSection";
 
 type Props = {
-    similarVerses: QueryObject[] | null;
+    similarVerses: QueryObject[] | undefined;
 }
 
 export default function SimilarVersesTable({ similarVerses }: Props) {
-    if (!similarVerses) return null;
+    if (!similarVerses || similarVerses.length === 0) return null;
 
     return (
-        <CollapsibleSection headerText="Similar Verses">
+        <CollapsibleSection headerText="Similar verses based on search criteria">
             <Table>
                 <TableHeader>
                     <TableRow>
