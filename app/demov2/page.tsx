@@ -38,7 +38,7 @@ export default function Page() {
                     ...verseData
                 }}
             />
-            <Chat />
+            <Chat similarVerses={similarVerses} verseData={verseData} />
         </div>
     );
 }
