@@ -232,3 +232,41 @@ def forward_translation_request(vref: str, target_language_code: str):
     
     translation = backend.Translation(vref, target_language_code=target_language_code)
     return str({'hypothesis': translation.get_hypothesis(), 'feedback': translation.get_feedback()})
+
+import random
+@app.get('/api/get_alignment')
+def get_available_alignment(language_code=None, n=10):
+    # return ../data/alignments/test_spanish.jsonl
+    code = language_code if language_code else 'test_spanish'
+    with open(f'data/alignments/{code}.jsonl', 'r') as f:
+        
+        # note that the data is jsonl, so we need to read it line by line
+        
+        data = f.readlines()
+        # Randomly sample n lines from the data
+        random_indexes = random.sample(range(len(data)), int(n))
+        data = [data[i] for i in random_indexes]
+        # Map over each line and make restructure to match interface expected by frontend
+        restructured_data = []
+        for raw_line in data:
+            line = json.loads(raw_line)
+            restructured_alignments = []
+            for alignment in line['alignments']:
+                keys = list(alignment.keys())
+                source_key = next((key for key in keys if 'Greek' in key or 'Hebrew' in key), None)
+                bridge_key = next((key for key in keys if 'English' in key), None)
+                target_key = next((key for key in keys if key != source_key and key != bridge_key), None)
+                
+                if source_key and bridge_key and target_key:
+                    restructured_alignments.append({
+                        'source': alignment[source_key],
+                        'bridge': alignment[bridge_key],
+                        'target': alignment[target_key]
+                    })
+            restructured_data.append({
+                'vref': line['vref'],
+                'alignments': restructured_alignments
+            })
+        return restructured_data
+
+    
