@@ -3,8 +3,10 @@ import CollapsibleSection from './CollapsibleSection';
 import { QueryObject } from '@/lib/types';
 import { Button } from './ui/button';
 import { useEffect, useState } from 'react';
+import { ChatRequestOptions, CreateMessage, Message } from 'ai';
 
 interface Props {
+    appendPromptToChat: (message: Message | CreateMessage, chatRequestOptions?: ChatRequestOptions | undefined) => Promise<string | null | undefined>;
     similarVerses: QueryObject[] | undefined;
     targetLanguageCode: string;
     sourceLanguageCode: string;
@@ -32,9 +34,20 @@ interface Props {
 export default function PromptGenerator(props: Props) {
     const prompt = generatePrompt(props);
     const [showCopiedText, setShowCopiedText] = useState<boolean>(false);
+    const [showMessageSent, setShowMessageSent] = useState<boolean>(false);
 
     // WE CAN EXPLORE WHAT IT MIGHT LOOK LIKE TO HAVE THE USER SELECT THE SPECIFIC EXAMPLES TO GENERATE THE PROMPT FROM
     // I.E. HAVING CHECKBOXES IN THE TABLE THAT WILL ADD THEM TO A LIST OF EXAMPLES TO INCLUDE IN THE PROMPT
+
+    useEffect(() => {
+        let id = setTimeout(() => {
+            setShowMessageSent(false)
+        }, 1000)
+
+        return () => {
+            clearTimeout(id);
+        }
+    }, [showMessageSent])
 
     useEffect(() => {
         let id = setTimeout(() => {
@@ -50,11 +63,11 @@ export default function PromptGenerator(props: Props) {
     
     return (
         <CollapsibleSection headerText="Prompt generator">
-            <p>The following is a generated prompt that you can copy and paste into the chat below:</p>
+            <p>The following is a generated prompt based on the most similar verses that contains your provided search criteria. You can either send the message directly to chat, or you can copy-paste it yourself.</p>
             <div className="border-2 rounded-md p-4">
                 <p>Translate the following sentence pairs into the target language:</p>
                 <br />
-                {props.similarVerses?.slice(0, 4).map((similarVerse) =>
+                {props.similarVerses?.slice(0, 2).map((similarVerse) =>
                     similarVerse?.macula && similarVerse?.bsb && (
                         <div key={similarVerse.vref}>
                             <p>Greek/Hebrew Source: {similarVerse.macula}</p>
@@ -70,10 +83,24 @@ export default function PromptGenerator(props: Props) {
                     <p>English Source: {props.sourceVerse.bsb?.content}</p>
                     <p>Target ({props.targetLanguageCode}): </p>
                 </div>
-                <Button className="mt-4 w-[150px]" disabled={showCopiedText} onClick={() => {
-                    setShowCopiedText(true);
-                    copyTextToClipboard(prompt)
-                }}>{showCopiedText ? "Copied!" : "Copy Prompt"}</Button>
+                <div className="flex flex-row mt-4 gap-x-4">
+                    <Button className="w-[150px]" disabled={showMessageSent} onClick={() => {
+                        setShowMessageSent(true);
+                        props.appendPromptToChat({
+                            content: prompt,
+                            role: 'user',
+                        })
+                        window.scrollTo(0, document.body.scrollHeight)
+                    }}>
+                        {showMessageSent ? "Sent!" : "Send to chat"}
+                    </Button>
+                    <Button className="w-[150px]" disabled={showCopiedText} onClick={() => {
+                        setShowCopiedText(true);
+                        copyTextToClipboard(prompt)
+                    }}>
+                        {showCopiedText ? "Copied!" : "Copy Prompt"}
+                    </Button>
+                </div>
             </div>
         </CollapsibleSection>
     )
@@ -88,10 +115,10 @@ const generatePrompt = (props: Props) => {
     ].join('\n');
 
     return (`# Translate the following sentence pairs into the target language:\n\n` +
-        props.similarVerses?.slice(0, 4).map((similarVerse) =>
-            `### Greek/Hebrew Source: ${similarVerse.macula}\n` +
-            `### English Source: ${similarVerse.bsb}\n` +
-            `### Target (${props.targetLanguageCode}): ${similarVerse.target}\n`,
+        props.similarVerses?.slice(0, 2).map((similarVerse) =>
+            `### Greek/Hebrew Source: ${similarVerse.macula}` +
+            `### English Source: ${similarVerse.bsb}` +
+            `### Target (${props.targetLanguageCode}): ${similarVerse.target}`,
         ).join('\n') + '\n\n' + sourceVerseForPrompt
     )
 
