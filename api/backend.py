@@ -216,14 +216,14 @@ def query_lancedb_table(language_code: str, query: str, limit: str='50'):
     if not result.values():
         return []
     texts = result['text']
-    scores = result['_distance']
+    # scores = result['_distance']
     vrefs = result['vref']
     
     output = []
     for i in range(len(texts)):
         output.append({
             'text': texts[i],
-            'score': scores[i],
+            # 'score': scores[i],
             'vref': vrefs[i]
         })
         
