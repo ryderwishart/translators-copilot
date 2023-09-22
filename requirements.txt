@@ -2,3 +2,4 @@ fastapi==0.95.2
 uvicorn[standard]
 loguru==0.7.0
 guidance
+lancedb

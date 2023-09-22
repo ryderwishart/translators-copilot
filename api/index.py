@@ -1,6 +1,7 @@
-from typing import Union, List
+from typing import Union, List, Optional
 import pandas as pd
 from fastapi import FastAPI, BackgroundTasks, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse
 import time
 import os, json, urllib
 import lancedb
@@ -67,14 +68,47 @@ def read_macula_verse_item(full_verse_ref: str):
 #     target_vref_data = get_target_vref_df(language_code, drop_empty_verses=drop_empty_verses)
 #     return target_vref_data
 
+@app.get("/api/download_triplets")
+async def download_triplets(target_language_code: str, file_suffix: Optional[str] = None, force: bool=False):
+    print(f'target_language_code: {target_language_code}')
+    filename = f"{target_language_code}_triplets.json"
+    
+    verse_triplets = {}
+    book_list = backend.get_vref_list()
+    for book in book_list:
+        vref_list = backend.get_vref_list(book)
+        # print(f'vref_list: {vref_list[:10]}')
+
+        for vref in vref_list:
+            verse_triplet = backend.get_verse_triplet(vref, target_language_code, bsb_bible_df, macula_df)
+            # print('verse_triplet', verse_triplet)
+            if verse_triplet is not None:
+                verse_triplets[vref] = verse_triplet
+    print(len(verse_triplets), 'verse triplets')
+    json_str = json.dumps(verse_triplets)
+
+    # Write the json_str to a file
+    with open(filename, 'w') as f:
+        f.write(json_str)
+    
+
+
+    # return FileResponse(
+    #     filename,
+    #     media_type="application/json",
+    #     headers={
+    #         "Content-Disposition": f"attachment; filename={filename}"
+    #     }
+    # )
+    return {"status": "Download started. Check back later for results."}
+
 # get a single verse with source text and gloss, bsb english, and target language
 @app.get("/api/verse/{full_verse_ref}&{language_code}")
 def get_verse(full_verse_ref: str, language_code: str):
     return backend.get_verse_triplet(full_verse_ref, language_code, bsb_bible_df, macula_df)
 
-# get the entire bible with source text and gloss, bsb english, and target language
-@app.get("/api/bible/{language_code}")
-def get_bible(language_code: str):
+@app.get("/api/bible")
+async def get_bible(language_code: str, file_suffix: Optional[str], force: Optional[bool], background_tasks: BackgroundTasks):
     """
     Get the entire Bible from bsb_bible_df, 
     AND macula_df (greek and hebrew)
@@ -83,40 +117,62 @@ def get_bible(language_code: str):
     e.g., http://localhost:3000/api/bible/aai
     """
     
-    target_vref_df = backend.get_target_vref_df(language_code)
+    filename = f'data/bible/{language_code}{file_suffix}.json'
+    
+    # If the file exists and we're not forcing a reprocess, return it
+    if os.path.exists(filename) and not force:
+        return FileResponse(
+            filename,
+            media_type="application/json",
+            headers={
+                "Content-Disposition": f"attachment; filename={language_code}.json"
+            }
+        )
+    
+    # Otherwise, start the long-running process in the background
+    background_tasks.add_task(process_bible, language_code, file_suffix)
+    return {"status": "Processing started. Check back later for results."}
+
+async def process_bible(language_code: str, file_suffix: Optional[str] = None): 
+    target_vref_df = backend.get_target_vref_df(language_code, file_suffix=file_suffix)
     
     output = []
-    for i in range(len(bsb_bible_df)):
-        bsb_row = bsb_bible_df.iloc[i]
-        macula_row = macula_df.iloc[i]
-        target_row = target_vref_df.iloc[i]
+    for vref in bsb_bible_df['vref']:
+        bsb_row = bsb_bible_df[bsb_bible_df['vref'] == vref]
+        macula_row = macula_df[macula_df['vref'] == vref]
+        target_row = target_vref_df[target_vref_df['vref'] == vref]
         
         output.append({
+            'vref': vref,
             'bsb': {
-                'verse_number': int(bsb_row.name),
-                'vref': bsb_row['vref'],
-                'content': bsb_row['content']
+                'vref': bsb_row['vref'].values[0] if not bsb_row.empty else '',
+                'content': bsb_row['content'].values[0] if not bsb_row.empty else ''
             },
             'macula': {
-                'vref': macula_row['vref'],
-                'verse_number': int(macula_row.name),
-                'content': macula_row['content']
+                'vref': macula_row['vref'].values[0] if not macula_row.empty else '',
+                'content': macula_row['content'].values[0] if not macula_row.empty else ''
             },
             'target': {
-                'verse_number': int(target_row.name),
-                'vref': target_row['vref'],
-                'content': target_row['content']
+                'vref': target_row['vref'].values[0] if not target_row.empty else '',
+                'content': target_row['content'].values[0] if not target_row.empty else ''
             }
         })
     
-    # Save output to disk as `data/triples/{language_code}.json`
-    if not os.path.exists('data/triples'):
-        os.mkdir('data/triples')
+    # Save output to disk as `data/bible/{language_code}.json`
+    if not os.path.exists('data/bible'):
+        os.mkdir('data/bible')
         
-    with open(f'data/triples/{language_code}.json', 'w') as f:
+    with open(f'data/bible/{language_code}{file_suffix}.json', 'w') as f:
         json.dump(output, f, ensure_ascii=False, indent=4)
     
-    return True
+    # Return the file as a download
+    return FileResponse(
+        f'data/bible/{language_code}{file_suffix}.json',
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f"attachment; filename={language_code}.json"
+        }
+    )
 
 # endpoint to get table info
 @app.get("/api/db_info")
@@ -124,20 +180,22 @@ def get_db_info():
     output = []
     
     db = lancedb.connect("./lancedb")
-    table_names = db.table_names()
+    table = db.open_table('verses').to_pandas()
     
-    for name in table_names:
-        table = db.open_table(name).to_pandas()
-        output.append({
-            'name': name,
-            'columns': list(table.columns),
-            'num_rows': len(table)
-        })
+    # Get unique languages in the table
+    languages = table['language'].unique()
+    
+    output.append({
+        'name': 'verses',
+        'columns': list(table.columns),
+        'num_rows': len(table),
+        'languages': languages.tolist()
+    })
     
     return output
 
-@app.get("/api/populate_db/{target_language_code}")
-def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
+@app.get("/api/populate_db")
+def populate_db(target_language_code: str, file_suffix: str, background_tasks: BackgroundTasks):
     """
     Populate database based on language code (3-char ISO 639-3 code).
     Pulls data from bsb_bible_df, macula_df, and a target language scraped from the ebible corpus.
@@ -145,17 +203,21 @@ def populate_db(target_language_code: str, background_tasks: BackgroundTasks):
     
     # Check if db exists
     if os.path.exists('./lancedb'):
-        if f'{target_language_code}.lance' in os.listdir('./lancedb'):
-            return {"status": "Database already exists. Please delete the database and try again."}
-    
-    if target_language_code.startswith('init'): # To initialize databases
-        logger.info('Initializing Greek/Hebrew and English vectorstores...')
-        background_tasks.add_task(backend.create_lancedb_table_from_df, bsb_bible_df, 'bsb_bible') # load_database loads up the macula and bsb tables by default if they don't exist... Probably should make this less magical in the future
-        return {"status": "Database initialization started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
+        db = lancedb.connect("./lancedb")
+        try:
+            table = db.open_table('verses').to_pandas()
+            if target_language_code in table['language'].unique():
+                return {"status": "Language already exists in the database. Please delete the language data and try again."}
+        except:
+            if target_language_code.startswith('init'): # To initialize databases
+                logger.info('Initializing Greek/Hebrew and English vectorstores...')
+                background_tasks.add_task(backend.create_lancedb_table_from_df, bsb_bible_df, 'verses') # load_database loads up the macula and bsb tables by default if they don't exist... Probably should make this less magical in the future
+                return {"status": f"Database initialization started for {target_language_code + file_suffix}... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
     
     logger.info('Populating database...')
-    background_tasks.add_task(backend.load_database, target_language_code)
+    background_tasks.add_task(backend.load_database, target_language_code, file_suffix)
     return {"status": "Database population started... takes about 45 seconds for 10 lines of text and ~300 seconds for the whole Bible, so be patient!"}
+
 
 @app.get("/api/query/{language_code}/{query}&limit={limit}")
 def call_query_endpoint(language_code: str, query: str, limit: str = '10'):
@@ -163,13 +225,13 @@ def call_query_endpoint(language_code: str, query: str, limit: str = '10'):
 
 # User should be able to submit vref + source language + target language to a /api/translation-prompt-builder/ endpoint
 @app.get("/api/translation-prompt-builder")
-def get_translation_prompt(vref: str, target_language_code: str, source_language_code: str=None, bsb_bible_df=None, macula_df=None):
+def get_translation_prompt(vref: str, target_language_code: str, source_language_code: str='', bsb_bible_df=None, macula_df=None, number_of_examples: int = 3):
     """Get a forward-translation few-shot prompt for a given vref, source, and target language code."""
     
     # Decode URI vref
     vref = urllib.parse.unquote(vref)
     print(f'vref: {vref}')
-    return backend.build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=3)
+    return backend.build_translation_prompt(vref, target_language_code, source_language_code=source_language_code, bsb_bible_df=bsb_bible_df, macula_df=macula_df, number_of_examples=number_of_examples)
 
 @app.get("/api/vrefs/?book={book}")
 def get_vrefs(book: str):
@@ -186,6 +248,46 @@ def get_unique_tokens(language_code: str):
     print(f'language_code: {language_code}')
     """Get a list of unique tokens from the ebible corpus texts by language code."""
     return backend.get_unique_tokens_for_language(language_code)
+
+
+'''
+example post body:
+{
+    "language_code": "aai",
+    "size": 3,
+    "n": 5,
+    "string_filter": [
+        "Ayu",
+        "Paul",
+        "Jesu",
+        "Keriso",
+        "ana",
+        "akir",
+        "wairafin",
+        "tur",
+        "abarin",
+        "isan",
+        "rubinu",
+        "naatu",
+        "Tur",
+        "Gewasin",
+        "binan",
+        "isan",
+        "God",
+        "eafu",
+        "atit"
+    ]
+}
+'''
+class NgramRequest(BaseModel):
+    language_code: str
+    size: int = 2
+    n: int = 100
+    string_filter: List[str] = []
+
+@app.post("/api/ngrams")
+def get_ngrams(request: NgramRequest):
+    return backend.get_ngrams(request.language_code, size=request.size, n=request.n, string_filter=request.string_filter)
 
 
 class EvaluateTranslationRequest(BaseModel):
@@ -228,8 +330,6 @@ def evaluate_translation_prompt_test():
 
 @app.get('/api/translate')
 def forward_translation_request(vref: str, target_language_code: str):
-    # return True
-    
     translation = backend.Translation(vref, target_language_code=target_language_code)
     return str({'hypothesis': translation.get_hypothesis(), 'feedback': translation.get_feedback()})
 
@@ -268,5 +368,3 @@ def get_available_alignment(language_code=None, n=10):
                 'alignments': restructured_alignments
             })
         return restructured_data
-
-    

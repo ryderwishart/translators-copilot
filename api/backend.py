@@ -1,7 +1,6 @@
 import os, time
 import pandas as pd
 import numpy as np
-# get counter
 from collections import Counter
 from .utils import abbreviate_book_name_in_full_reference, get_train_test_split_from_verse_list, embed_batch
 from .types import TranslationTriplet, ChatResponse, VerseMap, AIResponse
@@ -10,22 +9,25 @@ from typing import Any, List, Optional, Callable
 from random import shuffle
 import requests
 import guidance
+import lancedb
+from lancedb.embeddings import with_embeddings
+from nltk.util import ngrams
+from nltk import FreqDist 
 
 import logging
 logger = logging.getLogger('uvicorn')
 
 machine = 'http://192.168.1.76:8081'
 
-
-def get_dataframes(target_language_code=None):
+def get_dataframes(target_language_code=None, file_suffix=None):
     """Get source data dataframes (literalistic english Bible and macula Greek/Hebrew)"""
     bsb_bible_df = pd.read_csv('data/bsb-utf8.txt', sep='\t', names=['vref', 'content'], header=0)
     bsb_bible_df['vref'] = bsb_bible_df['vref'].apply(abbreviate_book_name_in_full_reference)
     macula_df = pd.read_csv('data/combined_greek_hebrew_vref.csv') # Note: csv wrangled in notebook: `create-combined-macula-df.ipynb`
     
     if target_language_code:
-        target_tsv = get_target_vref_df(target_language_code)
-        target_df = get_target_vref_df(target_language_code)
+        target_tsv = get_target_vref_df(target_language_code, file_suffix=file_suffix)
+        target_df = get_target_vref_df(target_language_code, file_suffix=file_suffix)
         return bsb_bible_df, macula_df, target_df
 
     else:
@@ -44,13 +46,17 @@ def get_vref_list(book_abbreviation=None):
         else:
             return list(set([i.strip().split(' ')[0] for i in f.readlines()]))
 
-def get_target_vref_df(language_code, drop_empty_verses=False):
+def get_target_vref_df(language_code, file_suffix=None, drop_empty_verses=False):
     """Get target language data by language code"""
     if not len(language_code) == 3:
         return 'Invalid language code. Please use 3-letter ISO 639-3 language code.'
     
     language_code = language_code.lower().strip()
+    
     language_code = f'{language_code}-{language_code}'
+    # if file_suffix:
+    #     print('adding file suffix', file_suffix)
+    language_code = f'{language_code}{file_suffix if file_suffix else ""}'
     
     target_data_url = f'https://raw.githubusercontent.com/BibleNLP/ebible/main/corpus/{language_code}.txt'
     path = f'data/{language_code}.txt'
@@ -60,8 +66,6 @@ def get_target_vref_df(language_code, drop_empty_verses=False):
             os.system(f'wget {target_data_url} -O {path}')
         except:
             return 'No data found for language code. Please check the eBible repo for available data.'
-
-    print(os.listdir())
 
     with open(path, 'r', encoding="utf8") as f:
         target_text = f.readlines()
@@ -101,6 +105,9 @@ def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_
     except:
         assert 'text' in df.columns, 'Please rename the content column to "text" or specify the column name in the function call.'
     
+    # Add target_language_code to the dataframe
+    df['language_code'] = table_name
+    
     # mkdir lancedb if it doesn't exist
     if not os.path.exists('./lancedb'):
         os.mkdir('./lancedb')
@@ -112,7 +119,6 @@ def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_
     
     if not table:
         # If it doesn't exist, create it
-        
         df_filtered = df[df['text'].str.strip() != '']
         # data = with_embeddings(embed_batch, df_filtered.sample(1000)) # FIXME: I can't process the entirety of the bsb bible for some reason. Something is corrupt or malformed in the data perhaps
         data = with_embeddings(embed_batch, df_filtered) 
@@ -124,34 +130,38 @@ def create_lancedb_table_from_df(df: DataFrameClass, table_name, content_column_
             data=data,
             mode="create",
         )
-          
     else:
-        table = db.open_table(table_name)
+        # If it exists, append to it
+        df_filtered = df[df['text'].str.strip() != '']
+        data = with_embeddings(embed_batch, df_filtered.sample(10000))
+        data = data.fillna(0)  # Fill missing values with 0
+        table.append(data)
     
     print('LanceDB table created. Time elapsed: ', time.time() - start_time, 'seconds.')
     return table  
-    
-def load_database(target_language_code=None):
+
+def load_database(target_language_code=None, file_suffix=None):
     print('Loading dataframes...')
     if target_language_code:
-        print(f'Loading target language data for {target_language_code}...')
-        bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code)
+        print(f'Loading target language data for {target_language_code} (suffix: {file_suffix})...')
+        bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code, file_suffix=file_suffix)
     else:
         print('No target language code specified. Loading English and Greek/Hebrew data only.')
         bsb_bible_df, macula_df = get_dataframes()
         target_df = None
     
-    print('Creating English tables...')
-    english_table_name = 'bsb_bible'
-    create_lancedb_table_from_df(bsb_bible_df, english_table_name)
-    
-    print('Creating Greek/Hebrew tables...')
-    macula_table_name = 'macula'
-    create_lancedb_table_from_df(macula_df, macula_table_name)
+    print('Creating tables...')
+    # table_name = 'verses'
+    # create_lancedb_table_from_df(bsb_bible_df, table_name)
+    # create_lancedb_table_from_df(macula_df, table_name)
+    create_lancedb_table_from_df(bsb_bible_df, 'bsb_bible')
+    create_lancedb_table_from_df(macula_df, 'macula')
     
     if target_df is not None:
         print('Creating target language tables...')
-        create_lancedb_table_from_df(target_df, target_language_code)
+        # create_lancedb_table_from_df(target_df, table_name)
+        target_table_name = target_language_code if not file_suffix else f'{target_language_code}{file_suffix}'
+        create_lancedb_table_from_df(target_df, target_table_name)
 
     print('Database populated.')
     return True
@@ -187,23 +197,26 @@ def get_verse_triplet(full_verse_ref: str, language_code: str, bsb_bible_df, mac
     target_df = get_target_vref_df(language_code)
     target_row = target_df[target_df['vref'] == full_verse_ref]
     
-    return {
-        'bsb': {
-            'verse_number': int(bsb_row.index[0]),
-            'vref': bsb_row['vref'][bsb_row.index[0]],
-            'content': bsb_row['content'][bsb_row.index[0]]
-        },
-        'macula': {
-            'verse_number': int(macula_row.index[0]),
-            'vref': macula_row['vref'][macula_row.index[0]],
-            'content': macula_row['content'][macula_row.index[0]]
-        },
-        'target': {
-            'verse_number': int(target_row.index[0]),
-            'vref': target_row['vref'][target_row.index[0]],
-            'content': target_row['content'][target_row.index[0]]
+    if not bsb_row.empty and not macula_row.empty:
+        return {
+            'bsb': {
+                'verse_number': int(bsb_row.index[0]),
+                'vref': bsb_row['vref'][bsb_row.index[0]],
+                'content': bsb_row['content'][bsb_row.index[0]]
+            },
+            'macula': {
+                'verse_number': int(macula_row.index[0]),
+                'vref': macula_row['vref'][macula_row.index[0]],
+                'content': macula_row['content'][macula_row.index[0]]
+            },
+            'target': {
+                'verse_number': int(target_row.index[0]),
+                'vref': target_row['vref'][target_row.index[0]],
+                'content': target_row['content'][target_row.index[0]]
+            }
         }
-    }
+    else:
+        return None
 
 def query_lancedb_table(language_code: str, query: str, limit: str='10'):
     """Get similar sentences from a LanceDB table."""
@@ -245,7 +258,56 @@ def get_unique_tokens_for_language(language_code):
     unique_tokens = Counter(target_tokens)
     return unique_tokens
 
-def build_translation_prompt(vref, target_language_code, source_language_code=None, bsb_bible_df=None, macula_df=None, number_of_examples=10, backtranslate=False) -> dict[str, TranslationTriplet]:
+def get_ngrams(language_code: str, size: int=2, n=100, string_filter: list[str]=[]):
+    """Get ngrams with frequencies for a language
+    
+    Params: 
+    - language_code (str): language code
+    - size (int): ngram size
+    - n (int): max number of ngrams to return
+    - string_filter (list[str]): if passed, only return ngrams where all ngram tokens are contained in string_filter
+    
+    A string_filter might be, for example, a tokenized sentence where you want to detect ngrams relative to the entire corpus.
+    
+    NOTE: calculating these is not slow, and it is assumed that the corpus itself will change during iterative translation
+    If it winds up being slow, we can cache the results and only recalculate when the corpus changes. # ?FIXME
+    """
+    tokens_to_ignore = ['']
+    # TODO: use a real character filter. I'm sure NLTK has something built in
+    
+    if language_code == 'bsb' or language_code =='bsb_bible':
+        df, _, _ = get_dataframes()
+    elif language_code =='macula':
+        _, df, _ = get_dataframes()
+    else:
+        _, _, df = get_dataframes(target_language_code=language_code)
+    
+    target_tokens = df['content'].apply(lambda x: x.split(' ')).explode().tolist() 
+    target_tokens = [token for token in target_tokens if token not in tokens_to_ignore]
+    
+    n_grams = [tuple(gram) for gram in ngrams(target_tokens, size)]
+
+    print('ngrams before string_filter:', len(n_grams))
+
+    if string_filter:
+        print('filtering with string_filter')
+        n_grams = [gram for gram in n_grams if all(token in string_filter for token in gram)]
+
+    freq_dist = FreqDist(n_grams)
+
+    print('ngrams after string_filter:', len(n_grams))
+    
+    return list(freq_dist.most_common(n))
+
+def build_translation_prompt(
+        vref, 
+        target_language_code, 
+        source_language_code=None, 
+        bsb_bible_df=None, 
+        macula_df=None, 
+        number_of_examples=3, 
+        backtranslate=False) -> dict[str, TranslationTriplet]:
+    
     """Build a prompt for translation"""
     if bsb_bible_df is None or bsb_bible_df.empty or macula_df is None or macula_df.empty: # build bsb_bible_df and macula_df only if not supplied (saves overhead)
         bsb_bible_df, macula_df, target_df = get_dataframes(target_language_code=target_language_code)
@@ -263,6 +325,8 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     
     triplets = [get_verse_triplet(similar_verse['vref'], target_language_code, bsb_bible_df, macula_df) for similar_verse in similar_verses]
     
+    target_verse = target_df[target_df['vref']==vref]['content'].values[0]
+    
     # Initialize an empty dictionary to store the JSON objects
     json_objects: dict[str, TranslationTriplet] = dict()
     
@@ -278,7 +342,7 @@ def build_translation_prompt(vref, target_language_code, source_language_code=No
     json_objects[vref] = TranslationTriplet(
         source=original_language_source,
         bridge_translation=query,
-        target=''
+        target=target_verse
     ).to_dict()
         
     return json_objects
@@ -319,7 +383,6 @@ def execute_discriminator_evaluation(verse_triplets: dict[str, TranslationTriple
         print(f'Verse triplet {i}: {triplet}')
         prompt += f'\n{triplet[0]}. Target: {triplet[1]["target"]}'
 
-    print(f'Final prompt: {prompt}')
     url = f"{machine}/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
@@ -353,9 +416,52 @@ def execute_fewshot_translation(vref, target_language_code, source_language_code
         "stream": False,
     }
     response = requests.post(url, json=payload, headers=headers)
-    print('>>>>>>>>>>', response.text)
     return response.json()
 
+class RevisionLoop(BaseModel):
+    # FIXME: this loop should only work for (revise-evaluate)*n, where you start with a translation draft.
+    # TODO: implement a revision function whose output could be evaluated
+    iterations: int
+    function_a: Optional[Callable] = None
+    function_b: Optional[Callable] = None
+    function_a_output: Optional[Any] = Field(None, description="Output of function A")
+    function_b_output: Optional[Any] = Field(None, description="Output of function B")
+    loop_data: Optional[List[Any]] = Field(None, description="List to store data generated in the loop")
+    current_iteration: int = Field(0, description="Current iteration of the loop")
+
+    def __init__(self, iterations: int, function_a=execute_fewshot_translation, function_b=execute_discriminator_evaluation):
+        super().__init__(iterations=iterations)
+        self.function_a = function_a
+        self.function_b = function_b
+        self.loop_data = ['test item']
+
+    def __iter__(self):
+        self.current_iteration = 0
+        return self
+
+    def __next__(self):
+        if self.current_iteration < self.iterations:
+            print("Executing function A...")
+            self.function_a_output: VerseMap = self.function_a()
+            print("Executing function B...")
+            # inputs for function b: (verse_triplets: dict[str, TranslationTriplet], hypothesis_vref: str, hypothesis_key='target') -> ChatResponse:
+            function_b_input = {
+                "verse_triplets": self.function_a_output,
+                "hypothesis_vref": list(self.function_a_output.keys())[-1],
+                "hypothesis_key": "target"
+            }
+            self.function_b_output = self.function_b(**function_b_input)
+            self.loop_data.append((self.function_a_output, self.function_b_output))
+            self.current_iteration += 1
+            return self.function_a_output, self.function_b_output
+        else:
+            print("Reached maximum iterations, stopping loop...")
+            raise StopIteration
+
+
+    def get_loop_data(self):
+        return self.loop_data
+    
 class Translation():
     """Translations differ from revisions insofar as revisions require an existing draft of the target"""
     
@@ -379,4 +485,3 @@ class Translation():
     
     def get_feedback(self):
         return self.feedback
-
