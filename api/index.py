@@ -243,8 +243,10 @@ def get_available_alignment(language_code=None, n=10):
         # note that the data is jsonl, so we need to read it line by line
         
         data = f.readlines()
+        # Check if n is greater than the length of data
+        n = min(int(n), len(data))
         # Randomly sample n lines from the data
-        random_indexes = random.sample(range(len(data)), int(n))
+        random_indexes = random.sample(range(len(data)), n)
         data = [data[i] for i in random_indexes]
         # Map over each line and make restructure to match interface expected by frontend
         restructured_data = []
@@ -269,4 +271,13 @@ def get_available_alignment(language_code=None, n=10):
             })
         return restructured_data
 
-    
+@app.get('/api/all_alignment_files')
+def get_all_alignment_files():
+    alignment_files = []
+    def find_jsonl_files(directory):
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.jsonl'):
+                    alignment_files.append(os.path.join(root, file))
+    find_jsonl_files('data/alignments')
+    return alignment_files
