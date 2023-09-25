@@ -5,7 +5,7 @@ import random
 import time
 
 openai.api_key = os.environ['OPENAI_API_KEY']
-# openai.organization = 'org-TKu0EilyBURjOa59qJxK0hHb' # FIXME: use env
+openai.organization = os.environ['OPENAI_API_ORG']
 
 MAX_RETRIES = 10
 
@@ -233,24 +233,31 @@ output_file_path = f'{output_dir}/alignments_{os.path.basename(args.data_path)}_
 
 for verse in json_data:
     prompt = generate_broad_alignment_prompt(verse)
-    retries = 0
-    while retries < MAX_RETRIES:
-        try:
-            response = align(prompt)
-            output = json.loads(response) # FIXME: 
-            verse['alignment'] = output
-            break
-        except json.JSONDecodeError:
-            retries += 1
-            if retries == MAX_RETRIES:
-                verse['alignment'] = 'Error: Maximum retries exceeded'
-                verse['error'] = 'true'
-                break
-            else:
-                time.sleep(1 + (1 * retries))  # Add backoff delay
+    # retries = 0
+    # while retries < MAX_RETRIES:
+        # try:
+        #     response = align(prompt)
+        #     output = json.loads(response) # FIXME: 
+        #     verse['alignment'] = output
+        #     break
+        # except json.JSONDecodeError:
+        #     retries += 1
+        #     if retries == MAX_RETRIES:
+        #         verse['alignment'] = 'Error: Maximum retries exceeded'
+        #         verse['error'] = 'true'
+        #         break
+        #     else:
+        #         time.sleep(1 + (1 * retries))  # Add backoff delay
                 # verse['alignment'] = response
                 # verse['error'] = 'true'
-      
+    try:
+        print('aligning', verse['vref'])
+        response = align(prompt)
+        output = json.loads(response) # FIXME: use pyjson5 ?
+        verse['alignment'] = output
+    except json.JSONDecodeError:
+        verse['alignment'] = 'Error: Maximum retries exceeded'
+        verse['error'] = 'true'
     with open(output_file_path, 'a') as f:
         f.write(json.dumps(verse, ensure_ascii=False))
         f.write('\n')
