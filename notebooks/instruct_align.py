@@ -20,6 +20,9 @@ parser.add_argument('--run_name', type=str, default='default_run', help='Name of
 parser.add_argument('--data_path', type=str, default='/Users/ryderwishart/translators-copilot/data/bible/spapddpt.json', help='Path to the data file')
 parser.add_argument('--model', type=str, default='gpt-3.5-turbo-instruct', help='Name of the model')
 parser.add_argument('--n', type=int, default=0, help='Number of verses to sample')
+parser.add_argument('--start_index', type=int, default=0, help='Start index for the verses to sample')
+parser.add_argument('--chunk_size', type=int, default=None, help='Size of each chunk')
+parser.add_argument('--current_chunk', type=int, default=None, help='Current chunk to process')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -32,6 +35,7 @@ if args.n == 0:
     print("Number of Verses to Sample: ALL")
 else:
     print(f"Number of Verses to Sample: {args.n}")
+print(f"Start Index: {args.start_index}")
 print(f"Chunk Size: {args.chunk_size}")
 
 
@@ -225,15 +229,40 @@ import os
 output_dir = f'data/alignments/{bible_name}'
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
-    
+
 ### LOAD DATA ###
 
-with open(args.data_path, 'r') as f:
-    json_data = json.load(f)
+total_chunks = 0
+
+def split_json_file(file_path, chunk_size):
+    global total_chunks
+    with open(file_path, 'r') as f:
+        data = json.load(f)
+
+    for i in range(0, len(data), chunk_size):
+        chunk = data[i:i + chunk_size]
+        total_chunks += 1
+        with open(f'{file_path}_{i//chunk_size}.json', 'w') as f:
+            json.dump(chunk, f, ensure_ascii=False)
+
+if args.chunk_size is not None:
+    split_json_file(args.data_path, args.chunk_size)
+
+if args.chunk_size is None:
+    with open(args.data_path, 'r') as f:
+        json_data = json.load(f)
+else:
+    json_data = []
+    for i in range(0, total_chunks):
+        with open(f'{args.data_path}_{i}.json', 'r') as f:
+            json_data.extend(json.load(f))
+            
+if args.current_chunk is None:
+    output_file_path = f'{output_dir}/{os.path.basename(args.data_path)}_{bible_name}_{selected_model}_{datetime.datetime.now().strftime("%Y%m%d-%H%M")}.jsonl'
+else:
+    output_file_path = f'{output_dir}/{os.path.basename(args.data_path)}_{bible_name}_{selected_model}_{datetime.datetime.now().strftime("%Y%m%d-%H%M")}_{args.current_chunk}.jsonl'
 
 ### ALIGN ###
-
-output_file_path = f'{output_dir}/alignments_{os.path.basename(args.data_path)}_{bible_name}_{selected_model}_{datetime.datetime.now().strftime("%Y%m%d-%H%M")}.jsonl'
 
 for sample in json_data:
     prompt = generate_broad_alignment_prompt(sample)

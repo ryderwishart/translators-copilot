@@ -1,8 +1,8 @@
 'use client';
-import PromptCompletion from '@/src/components/PromptCompletion';
+import PromptCompletion from '@/components/PromptCompletion';
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { SimilarExample } from '@/src/types';
+import { SimilarExample } from '@/lib/types';
 
 async function fetcher(url: string) {
   const res = await fetch(url);

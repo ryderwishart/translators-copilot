@@ -1,72 +1,109 @@
 'use client';
-// interface DataProps {
-//   vref: string;
-//   target_language_code: string;
-// }
+import AlignmentTable, { AlignmentSet } from '@/components/AlignmentTable';
+import { Button } from '@/components/ui/button';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { zodResolver } from '@hookform/resolvers/zod';
 import React from 'react';
+import { useForm } from 'react-hook-form';
+import { z } from 'zod';
 
-export interface AlignmentSet {
-  vref: string;
-  alignments: [Alignment];
-}
+const formSchema = z.object({
+  filename: z
+    .string({
+      required_error: 'Please enter filename.',
+    })
+    .default(''),
+});
 
-export interface Alignment {
-  source: string;
-  target: string;
-  bridge: string;
-}
+export default function Page() {
+  const [alignmentData, setAlignmentData] = React.useState<AlignmentSet[]>([]);
+  const [allAlignmentFiles, setAllAlignmentFiles] = React.useState<string[]>(
+    [],
+  );
 
-interface AlignmentTableProps {
-  alignmentData: AlignmentSet[];
-}
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    reValidateMode: 'onSubmit',
+  });
 
-const AlignmentTable: React.FC<AlignmentTableProps> = ({ alignmentData }) => {
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const filename = values.filename;
+    const alignmentArray = await getAlignmentData(filename, 10);
+
+    setAlignmentData(alignmentArray);
+  };
+
+  React.useEffect(() => {
+    const fetchFiles = async () => {
+      const files = await getAllAlignmentFiles();
+      setAllAlignmentFiles(files);
+    };
+
+    fetchFiles();
+  }, []);
+
   return (
-    <div className="flex flex-col items-center self-center bg-white shadow-md rounded-lg p-4 items-stretch">
-      {/* {JSON.stringify(alignmentResponse)} */}
-      {/** create a table to view alignments */}
-      {alignmentData ? (
-        alignmentData.map((alignmentSet: AlignmentSet) => (
-          <div key={alignmentSet.vref} className="my-4">
-            <div className="font-semibold text-lg mb-2">
-              {alignmentSet.vref}
-            </div>
-            <table className="table-auto w-full">
-              <thead>
-                <tr className="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
-                  <th className="py-3 px-6 text-left w-1/3">Source</th>
-                  <th className="py-3 px-6 text-left w-1/3">Bridge</th>
-                  <th className="py-3 px-6 text-left w-1/3">Target</th>
-                </tr>
-              </thead>
-              <tbody>
-                {alignmentSet.alignments.map((alignment: Alignment) => (
-                  <tr
-                    key={alignment.source}
-                    className="text-gray-600 text-sm font-light border-b border-gray-200"
-                  >
-                    <td className="py-3 px-6 w-1/3">{alignment.source}</td>
-                    <td className="py-3 px-6 w-1/3">{alignment.bridge}</td>
-                    <td className="py-3 px-6 w-1/3">{alignment.target}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ))
-      ) : (
-        <div className="text-center py-4">Loading...</div>
-      )}
+    <div>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="border-2 rounded-md p-4 space-y-6"
+        >
+          <FormField
+            control={form.control}
+            name="filename"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Filename</FormLabel>
+                <FormControl>
+                  <div className="flex flex-row gap-2">
+                    <Select {...field}>
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Enter filename here..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {allAlignmentFiles.map((file) => (
+                          <SelectItem key={file} value={file}>
+                            {file}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="submit">Submit</Button>
+                  </div>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </form>
+      </Form>
+      <AlignmentTable alignmentData={alignmentData} />
     </div>
   );
-};
+}
 
-async function getData(
-  language_code: string,
+async function getAlignmentData(
+  filename: string,
   n: number,
 ): Promise<AlignmentSet[]> {
   const promptRes = await fetch(
-    `http://localhost:3000/api/get_alignment?language_code=${language_code}&n=${n}`,
+    `http://localhost:3000/api/get_alignment?filename=${filename}&n=${n}`,
     {
       next: { revalidate: 10 },
     },
@@ -78,37 +115,23 @@ async function getData(
 
   // Await the json() method to get the actual data
   const alignmentArray = await promptRes.json();
-
-  console.log({ alignmentArray });
   return alignmentArray;
 }
 
-export default function Page() {
-  const [alignmentData, setAlignmentData] = React.useState<AlignmentSet[]>([]);
-  const [url, setUrl] = React.useState(
-    'http://localhost:3000/api/get_alignment',
+async function getAllAlignmentFiles(): Promise<string[]> {
+  // Get the array of string filenames for the alignment data from http://localhost:3000/api/all_alignment_files
+  const allAlignmentFilesRes = await fetch(
+    `http://localhost:3000/api/all_alignment_files`,
+    {
+      next: { revalidate: 10 },
+    },
   );
 
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const data = await getData('spapddpt_split', 10);
-    setAlignmentData(data);
-  };
+  if (!allAlignmentFilesRes.ok) {
+    throw new Error('Failed to fetch data');
+  }
 
-  return (
-    <div>
-      <form onSubmit={handleSubmit}>
-        <label>
-          URL:
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-          />
-        </label>
-        <input type="submit" value="Submit" />
-      </form>
-      <AlignmentTable alignmentData={alignmentData} />
-    </div>
-  );
+  // Await the json() method to get the actual data
+  const allAlignmentFiles = await allAlignmentFilesRes.json();
+  return allAlignmentFiles;
 }

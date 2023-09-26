@@ -1,4 +1,4 @@
-import FewShotPrompt from '@/src/components/FewShotPrompt';
+import FewShotPrompt from '@/components/FewShotPrompt';
 
 interface DataProps {
   vref: string;
