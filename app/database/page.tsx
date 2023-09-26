@@ -1,4 +1,4 @@
-import { DatabaseInfo } from '../../src/components';
+import { DatabaseInfo } from '@/components/DatabaseTable';
 
 interface Table {
   name: string;

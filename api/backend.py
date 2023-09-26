@@ -218,7 +218,7 @@ def get_verse_triplet(full_verse_ref: str, language_code: str, bsb_bible_df, mac
     else:
         return None
 
-def query_lancedb_table(language_code: str, query: str, limit: str='10'):
+def query_lancedb_table(language_code: str, query: str, limit: str='50'):
     """Get similar sentences from a LanceDB table."""
     # limit = int(limit) # I don't know if this is necessary. The FastAPI endpoint might infer an int from the query param if I typed it that way
     table = get_table_from_database(language_code)
@@ -229,14 +229,14 @@ def query_lancedb_table(language_code: str, query: str, limit: str='10'):
     if not result.values():
         return []
     texts = result['text']
-    scores = ['score'] # result['score']
+    # scores = result['_distance']
     vrefs = result['vref']
     
     output = []
     for i in range(len(texts)):
         output.append({
             'text': texts[i],
-            'score': ['score'], # scores[i]
+            # 'score': scores[i],
             'vref': vrefs[i]
         })
         
