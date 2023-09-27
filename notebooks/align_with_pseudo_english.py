@@ -33,6 +33,7 @@ parser.add_argument('--model', type=str, default='gpt-3.5-turbo-instruct', help=
 parser.add_argument('--n', type=int, default=0, help='Number of verses to sample')
 parser.add_argument('--randomize', action='store_true', help='Randomize the order of the verses')
 parser.add_argument('--pseudo_english_only', action='store_true', help='Only generate pseudo-english translations')
+parser.add_argument('--ids_file_path', type=str, default=None, help='Path to the txt file containing vref ids')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -42,6 +43,11 @@ print(f"Run Name: {args.run_name}")
 print(f"Data Path: {args.data_path}")
 print(f"Model: {args.model}")
 print(f"Pseudo-English Only: {args.pseudo_english_only}")
+specified_ids = []
+if args.ids_file_path:
+    with open(args.ids_file_path, 'r') as f:
+        specified_ids = [line.strip() for line in f.readlines()]
+    print(f"Specified IDs: {specified_ids}")
 if args.n == 0:
     print("Number of Verses to Sample: ALL")
 else:
@@ -330,6 +336,10 @@ else:
             json_data: List[Verse] = random.sample(json.load(f), args.n)
         else:
             json_data: List[Verse] = json.load(f)[:args.n]
+
+# Post-filter json_data by verses in specified_ids array
+if specified_ids:
+    json_data = [verse for verse in json_data if verse['vref'] in specified_ids]
 
 ### ALIGN ###
 
