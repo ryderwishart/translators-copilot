@@ -1,6 +1,7 @@
 
 ## run script example: python alignments/process-ranges-for-alignments.py tpiOTNT-gpt-3.5-turbo-instruct_20230922.jsonl
 
+import os
 import json
 import argparse
 from fuzzywuzzy import process
@@ -12,12 +13,13 @@ parser = argparse.ArgumentParser(description='Process alignment files.')
 parser.add_argument('filename', help='the file to process')
 args = parser.parse_args()
 
-
 # First Script
 def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[Dict[str, Any]]:
     macula_data: Dict[str, List[Dict[str, Union[str, int]]]] = {}
     # TODO: fetch macula-hebrew.tsv from repo
-    with open('alignments/macula-hebrew.tsv', 'r') as file:
+    if not os.path.exists('data/sources/macula-hebrew.tsv'):
+        os.system('wget https://github.com/Clear-Bible/macula-hebrew/raw/main/TSV/macula-hebrew.tsv -O data/sources/macula-hebrew.tsv')
+    with open('data/sources/macula-hebrew.tsv', 'r') as file:
         next(file)
         for line in tqdm(file):
             parts = line.strip().split('\t')
@@ -27,7 +29,9 @@ def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[D
                 macula_data[vref] = []
             macula_data[vref].append({'text': text, 'id': xml_id})
     # TODO: fetch macula-greek-SBLGNT.tsv from repo
-    with open('alignments/macula-greek-SBLGNT.tsv', 'r') as file:
+    if not os.path.exists('data/sources/macula-greek-SBLGNT.tsv'):
+        os.system('wget https://github.com/Clear-Bible/macula-greek/raw/main/SBLGNT/tsv/macula-greek-SBLGNT.tsv -O data/sources/macula-greek-SBLGNT.tsv')
+    with open('data/sources/macula-greek-SBLGNT.tsv', 'r') as file:
         next(file)
         for line in tqdm(file):
             parts = line.strip().split('\t')
@@ -38,7 +42,7 @@ def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[D
             macula_data[vref].append({'text': text, 'id': xml_id})
 
     processed_data: List[Dict[str, Any]] = []
-    # with open(f'alignments/{filename}', 'r') as file:
+    # with open(f'data/alignments/{filename}', 'r') as file:
     for data in tqdm(normalize_data):
         # data = json.loads(line)
         vref = data['vref']
@@ -119,7 +123,7 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
         bsb_content = data['bsb']['content']
         macula_content = data['macula']['content']
         target_content = data['target']['content']
-        alignment: Any = data.get('alignments')
+        alignment: Any = data.get('alignments') if 'alignments' in data else data.get('alignment') # Handle both 'alignments' and 'alignment' keys
         
         # Check if alignment is None or a string (which means there was an error), and skip processing if it is
         if alignment is None or isinstance(alignment, str):
@@ -155,7 +159,7 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
 def normalize_phrases(filename: str) -> List[Dict[str, Any]]:
     processed_data = []
 
-    with open(f'alignments/{filename}', 'r') as file:
+    with open(f'data/alignments/{filename}', 'r') as file:
         for line in file:
             data = json.loads(line)
             if 'alignments' in data:
@@ -254,7 +258,7 @@ print(processed_data[0])
 final_processed_data = range_align_generated_alignments_to_vers(processed_data)
 
 # Writing the final output
-output_filename = f'alignments/{args.filename}_final_output.jsonl'
+output_filename = f'data/alignments/{args.filename}_final_output.jsonl'
 print(f"{macula_tokens_not_matched} macula tokens were not matched")
 with open(output_filename, 'w') as outfile:
     for data in final_processed_data:
