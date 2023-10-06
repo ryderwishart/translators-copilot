@@ -20,6 +20,7 @@ parser.add_argument('--run_name', type=str, default='default_run', help='Name of
 parser.add_argument('--data_path', type=str, default='/Users/ryderwishart/translators-copilot/data/bible/spapddpt.json', help='Path to the data file')
 parser.add_argument('--model', type=str, default='gpt-3.5-turbo-instruct', help='Name of the model')
 parser.add_argument('--n', type=int, default=0, help='Number of verses to sample')
+parser.add_argument('--ids_file_path', type=str, default=None, help='Path to the txt file containing vref ids')
 
 # Parse the arguments
 args = parser.parse_args()
@@ -32,140 +33,159 @@ if args.n == 0:
     print("Number of Verses to Sample: ALL")
 else:
     print(f"Number of Verses to Sample: {args.n}")
+specified_ids = []
+if args.ids_file_path:
+    with open(args.ids_file_path, 'r') as f:
+        specified_ids = [line.strip() for line in f.readlines()]
+    print(f"Specified IDs: {specified_ids}")
 
 
 ### ALIGNMENT FUNCTIONS ###
 def generate_broad_greek_alignment_prompt(verse):
     bsb, macula, target = verse['bsb']['content'], verse['macula']['content'], verse['target']['content']
     try:
-        return f'''Here are some general facts to note about Spanish:
-Spanish is a fusional language, ensure correct affix attachment; follow SVO order; mark verbs for tense, aspect, mood.
-For translating from Greek: replace Greeks's three-gender system with Spanish's two-gender system, ensuring agreement; shift to SVO order; adapt Greek Voice/Aspect/Mood markings to Spanish system.
-
-Translation style:
-The Spanish translation is  a literal translation trying to stick closely to the Greek word order, but there may occasionally be instances where Target phrases differ to produce a more natural translation.
+        return f'''Translation style:
+The French translation is  a literal translation trying to stick closely to the Hebrew word order, but there may occasionally be instances where Target phrases differ to produce a more natural translation.
 
 Here is a sentence:
-Spanish: —¿Qué es lo que ha pasado? —preguntó. Ellos respondieron: —Lo de Jesús de Nazaret. Era un profeta poderoso en obras y en palabras delante de Dios y de todo el pueblo.
-English: And He said to them What things; - And they said to Him The things concerning Jesus of Nazareth, who was a man a prophet mighty in deed and word before - God and all the people,
-Greek: καὶ εἶπεν αὐτοῖς Ποῖα;οἱ δὲ εἶπαν αὐτῷ Τὰ περὶ Ἰησοῦ τοῦ Ναζαρηνοῦ,ὃς ἐγένετο ἀνὴρ προφήτης δυνατὸς ἐν ἔργῳ καὶ λόγῳ ἐναντίον τοῦ Θεοῦ καὶ παντὸς τοῦ λαοῦ,
+Target: Sur quoi Thomas, appelé Didyme, dit aux autres disciples: Allons aussi, afin de mourir avec lui.
+English: Then Thomas called Didymus said to his fellow disciples, “Let us also go, so that we may die with Him.”
+Greek: εἶπεν οὖν Θωμᾶς ὁ λεγόμενος Δίδυμος τοῖς συνμαθηταῖς Ἄγωμεν καὶ ἡμεῖς ἵνα ἀποθάνωμεν μετ’ αὐτοῦ.
 
 Here is a phonological, semantic, orthographic alignment of that sentence:
 ```
 [
     {{
-        "Target phrase": "—preguntó.",
-        "English phrase": "And He said to them",
-        "Greek phrase": "καὶ εἶπεν αὐτοῖς"
+        "Target phrase": "Sur quoi",
+        "English phrase": "Then",
+        "Greek phrase": "οὖν"
     }},
     {{
-        "Target phrase": "¿Qué es lo que ha pasado?",
-        "English phrase": "What things;",
-        "Greek phrase": "Ποῖα;"
+        "Target phrase": "Thomas,",
+        "English phrase": "Thomas",
+        "Greek phrase": "Θωμᾶς"
     }},
     {{
-        "Target phrase": "Ellos respondieron",
-        "English phrase": "And they said to Him",
-        "Greek phrase": "οἱ δὲ εἶπαν αὐτοῖς"
+        "Target phrase": "appelé",
+        "English phrase": "called",
+        "Greek phrase": "ὁ λεγόμενος"
     }},
     {{
-        "Target phrase": "—Lo de Jesús de Nazaret.",
-        "English phrase": "The things concerning Jesus of Nazareth,",
-        "Greek phrase": "Τὰ περὶ Ἰησοῦ τοῦ Ναζαρηνοῦ"
+        "Target phrase": "Didyme,",
+        "English phrase": "Didymus",
+        "Greek phrase": "Δίδυμος"
     }},
     {{
-        "Target phrase": "Era un profeta poderoso", 
-        "English phrase": "who was a man a prophet mighty", 
-        "Greek phrase": "ὃς ἐγένετο ἀνὴρ προφήτης δυνατὸς"
+        "Target phrase": "dit",
+        "English phrase": "said",
+        "Greek phrase": "εἶπεν"
     }},
-        "Target phrase": "en obras y en palabras",
-        "English phrase": "in deed and word",
-        "Greek phrase": "ἐν ἔργῳ καὶ λόγῳ"
     {{
-        "Target phrase": "delante de Dios y de todo el pueblo.",
-        "English phrase": "before - God and all the people",
-        "Greek phrase": "ἐναντίον τοῦ Θεοῦ καὶ παντὸς τοῦ λαοῦ"
+        "Target phrase": "aux autres disciples:",
+        "English phrase": "to his fellow disciples,",
+        "Greek phrase": "τοῖς συνμαθηταῖς"
+    }},
+    {{
+        "Target phrase": "Allons aussi,",
+        "English phrase": "“Let us also go,",
+        "Greek phrase": "Ἄγωμεν καὶ ἡμεῖς "
+    }},
+    {{
+        "Target phrase": "afin",
+        "English phrase": "so that",
+        "Greek phrase": "ἵνα"
+    }},
+    {{
+        "Target phrase": "de mourir",
+        "English phrase": "we may die",
+        "Greek phrase": "ἀποθάνωμεν"
+    }},
+    {{
+        "Target phrase": "avec lui.",
+        "English phrase": "with Him.”",
+        "Greek phrase": "μετ’ αὐτοῦ."
     }}
 ]
 ```
 
-Please also align the following sentence. Avoid including multiple phrases in a single alignment unit. You may need to break phrases  on commas or other major punctuation, including enclosing quotation marks. But you may also need to break a phrase along conjunctions or other words that typically mark the start of a new phrase. Always respond with perfect JSON:
+Please also align the following sentence. Avoid including multiple phrases in a single alignment unit. You may need to break phrases  on commas or other major punctuation, including enclosing quotation marks. But you may also need to break a phrase along conjunctions or other words that typically mark the start of a new phrase. Try to align in a fairly granular manner. Always respond with perfect JSON:
 
-Target Phrase: {target}
-English Phrase: {bsb}
-Greek Phrase: {macula}
+Target: {target}
+English: {bsb}
+Greek: {macula}
 '''
     except Exception as e:
         print('Error on Greek alignment prompt generation.', e)
         return 'ERROR'
 
-def generate_broad_hebrew_alignment_prompt(verse):
+def generate_broad_hebrew_alignment_prompt(verse): # FIXME: add a French example, and make it more granular
     bsb, macula, target = verse['bsb']['content'], verse['macula']['content'], verse['target']['content']
     try:
-        return f'''Here are some general facts to note about Spanish:
-Spanish is a fusional language, ensure correct affix attachment; follow SVO order; mark verbs for tense, aspect, mood.
-For translating from Hebrew: shift to SVO order; adapt Hebrew Voice/Aspect/Mood markings to Spanish system.
-
-Translation style:
-The Spanish translation is  a literal translation trying to stick closely to the Hebrew word order, but there may occasionally be instances where Target phrases differ to produce a more natural translation.
+        return f'''Translation style:
+The French translation is  a literal translation trying to stick closely to the Hebrew word order, but there may occasionally be instances where Target phrases differ to produce a more natural translation.
 
 Here is a sentence:
-Spanish: Pero la tierra estaba desolada y vacía, y había oscuridad sobre la superficie del abismo. El Espíritu de ʼElohim se movía sobre la superficie de las aguas.
-English: Now the earth was formless and void, and darkness was over the surface of the deep. And the Spirit of God was hovering over the surface of the waters.
-Hebrew: וְהָאָ֗רֶץ הָיְתָ֥ה תֹ֨הוּ֙ וָבֹ֔הוּ וְחֹ֖שֶׁךְ עַל־פְּנֵ֣י תְה֑וֹם וְר֣וּחַ אֱלֹהִ֔ים מְרַחֶ֖פֶת עַל־פְּנֵ֥י הַמָּֽיִם׃
+French: Puis Dieu dit: Que la terre produise de la verdure, de l’herbe portant de la semence, des arbres fruitiers donnant du fruit selon leur espèce et ayant en eux leur semence sur la terre. Et cela fut ainsi.
+English: Then God said, “Let the earth bring forth vegetation: seed-bearing plants and fruit trees, each bearing fruit with seed according to its kind.” And it was so.
+Hebrew: וַיֹּ֣אמֶר  אֱלֹהִ֗ים  תַּֽדְשֵׁ֤א  הָאָ֨רֶץ֙  דֶּ֔שֶׁא  עֵ֚שֶׂב  מַזְרִ֣יעַ  זֶ֔רַע  עֵ֣ץ  פְּרִ֞י  עֹ֤שֶׂה  פְּרִי֙  לְמִינ֔וֹ  אֲשֶׁ֥ר  זַרְעוֹ־ ב֖וֹ  עַל־ הָאָ֑רֶץ  וַֽיְהִי־ כֵֽן׃
 
 Here is a phonological, semantic, orthographic alignment of that sentence:
 ```
 [
     {{
-        "Target phrase": "Pero la tierra",
-        "English phrase": "Now the earth",
-        "Hebrew phrase": "וְהָאָ֗רֶץ",
+        "Target phrase": "Puis Dieu dit:",
+        "English phrase": "Then God said,",
+        "Hebrew phrase": "וַיֹּ֣אמֶר  אֱלֹהִ֗ים"
     }},
     {{
-        "Target phrase": "estaba desolada",
-        "English phrase": "was formless",
-        "Hebrew phrase": "הָיְתָ֥ה תֹ֨הוּ֙",
+        "Target phrase": "Que la terre produise",
+        "English phrase": "“Let the earth bring forth",
+        "Hebrew phrase": "תַּֽדְשֵׁ֤א  הָאָ֨רֶץ֙"
     }},
     {{
-        "Target phrase": "y vacía,",
-        "English phrase": "and void,",
-        "Hebrew phrase": "וָבֹ֔הוּ"
+        "Target phrase": "de la verdure,",
+        "English phrase": "vegetation:",
+        "Hebrew phrase": "דֶּ֔שֶׁא"
     }},
     {{
-        "Target phrase": "y había oscuridad",
-        "English phrase": "and darkness",
-        "Hebrew phrase": "וְחֹ֖שֶׁךְ",
+        "Target phrase": "de l’herbe",
+        "English phrase": "seed-bearing plants",
+        "Hebrew phrase": "עֵ֚שֶׂב"
     }},
     {{
-        "Target phrase": "sobre la superficie",
-        "English phrase": "was over the surface",
-        "Hebrew phrase": "עַל־פְּנֵ֣י",
+        "Target phrase": "portant de la semence,",
+        "English phrase": "and fruit trees,",
+        "Hebrew phrase": "מַזְרִ֣יעַ  זֶ֔רַע"
     }},
     {{
-        "Target phrase": "del abismo.",
-        "English phrase": "of the deep.",
-        "Hebrew phrase": "תְה֑וֹם"
+        "Target phrase": "des arbres fruitiers",
+        "English phrase": "each bearing fruit",
+        "Hebrew phrase": "עֵ֣ץ  פְּרִ֞י"
     }},
     {{
-        "Target phrase": "El Espíritu de ʼElohim",
-        "English phrase": "And the Spirit of God",
-        "Hebrew phrase": "וְר֣וּחַ אֱלֹהִ֔ים",
+        "Target phrase": "donnant du fruit",
+        "English phrase": "with seed",
+        "Hebrew phrase": "עֹ֤שֶׂה  פְּרִי֙"
     }},
     {{
-        "Target phrase": "se movía",
-        "English phrase": "was hovering",
-        "Hebrew phrase": "מְרַחֶ֖פֶת",
+        "Target phrase": "selon leur espèce",
+        "English phrase": "according to its kind.",
+        "Hebrew phrase": "לְמִינ֔וֹ"
     }},
     {{
-        "Target phrase": "sobre la superficie de las aguas.",
-        "English phrase": "over the surface of the waters.",
-        "Hebrew phrase": "עַל־פְּנֵ֥י הַמָּֽיִם׃"
+        "Target phrase": "et ayant en eux leur semence",
+        "English phrase": "“",
+        "Hebrew phrase": "אֲשֶׁ֥ר  זַרְעוֹ־ ב֖וֹ"
+    }},
+    {{
+        "Target phrase": "sur la terre.",
+        "English phrase": "And it was so.",
+        "Hebrew phrase": "עַל־ הָאָ֑רֶץ  וַֽיְהִי־ כֵֽן׃"
     }}
 ]
 ```
 
-Please also align the following sentence. Avoid including multiple phrases in a single alignment unit. You may need to break phrases on commas or other major punctuation, including enclosing quotation marks. But you may also need to break a phrase along conjunctions or other words that typically mark the start of a new phrase. Always respond with perfect JSON:
+Please also align the following sentence. Avoid including multiple phrases in a single alignment unit. You may need to break phrases on commas or other major punctuation, including enclosing quotation marks. But you may also need to break a phrase along conjunctions or other words that typically mark the start of a new phrase. Try to align in a fairly granular manner. Always respond with perfect JSON:
 
 Target: {target}
 English: {bsb}
@@ -221,11 +241,23 @@ if not os.path.exists(output_dir):
 ### LOAD DATA ###
 
 if args.n == 0:
-    with open(args.data_path, 'r') as f:
-        json_data = json.load(f)
+    if args.data_path.endswith('.jsonl'):
+        with open(args.data_path, 'r') as f:
+            json_data = [json.loads(line) for line in f]
+    else:
+        with open(args.data_path, 'r') as f:
+            json_data = json.load(f)
 else:
-    with open(args.data_path, 'r') as f:
-        json_data = random.sample(json.load(f), args.n)
+    if args.data_path.endswith('.jsonl'):
+        with open(args.data_path, 'r') as f:
+            json_data = random.sample([json.loads(line) for line in f], args.n)
+    else:
+        with open(args.data_path, 'r') as f:
+            json_data = random.sample(json.load(f), args.n)
+
+# Post-filter json_data by verses in specified_ids array
+if specified_ids:
+    json_data = [verse for verse in json_data if verse['vref'] in specified_ids]
 
 ### ALIGN ###
 
@@ -233,28 +265,12 @@ output_file_path = f'{output_dir}/alignments_{os.path.basename(args.data_path)}_
 
 for verse in json_data:
     prompt = generate_broad_alignment_prompt(verse)
-    # retries = 0
-    # while retries < MAX_RETRIES:
-        # try:
-        #     response = align(prompt)
-        #     output = json.loads(response) # FIXME: 
-        #     verse['alignment'] = output
-        #     break
-        # except json.JSONDecodeError:
-        #     retries += 1
-        #     if retries == MAX_RETRIES:
-        #         verse['alignment'] = 'Error: Maximum retries exceeded'
-        #         verse['error'] = 'true'
-        #         break
-        #     else:
-        #         time.sleep(1 + (1 * retries))  # Add backoff delay
-                # verse['alignment'] = response
-                # verse['error'] = 'true'
     try:
         print('aligning', verse['vref'])
         response = align(prompt)
         output = json.loads(response) # FIXME: use pyjson5 ?
         verse['alignment'] = output
+        verse['error'] = 'false'
     except json.JSONDecodeError:
         verse['alignment'] = 'Error: Maximum retries exceeded'
         verse['error'] = 'true'
