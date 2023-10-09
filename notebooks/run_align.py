@@ -133,54 +133,49 @@ Here is a phonological, semantic, orthographic alignment of that sentence:
 ```
 [
     {{
-        "Target phrase": "Puis Dieu dit:",
-        "English phrase": "Then God said,",
-        "Hebrew phrase": "וַיֹּ֣אמֶר  אֱלֹהִ֗ים"
-    }},
-    {{
-        "Target phrase": "Que la terre produise",
-        "English phrase": "“Let the earth bring forth",
-        "Hebrew phrase": "תַּֽדְשֵׁ֤א  הָאָ֨רֶץ֙"
-    }},
-    {{
-        "Target phrase": "de la verdure,",
-        "English phrase": "vegetation:",
+        "Target phrase:": "de la verdure,",
+        "English phrase:": "vegetation:",
         "Hebrew phrase": "דֶּ֔שֶׁא"
     }},
     {{
-        "Target phrase": "de l’herbe",
-        "English phrase": "seed-bearing plants",
-        "Hebrew phrase": "עֵ֚שֶׂב"
+        "Target phrase:": "de l’herbe portant de la semence,",
+        "English phrase:": "seed-bearing plants",
+        "Hebrew phrase": "עֵ֚שֶׂב מַזְרִ֣יעַ זֶ֔רַע"
     }},
     {{
-        "Target phrase": "portant de la semence,",
-        "English phrase": "and fruit trees,",
-        "Hebrew phrase": "מַזְרִ֣יעַ  זֶ֔רַע"
+        "Target phrase:": "des arbres fruitiers",
+        "English phrase:": "and fruit trees,",
+        "Hebrew phrase": "עֵ֣ץ פְּרִ֞י"
     }},
     {{
-        "Target phrase": "des arbres fruitiers",
-        "English phrase": "each bearing fruit",
-        "Hebrew phrase": "עֵ֣ץ  פְּרִ֞י"
+        "Target phrase:": "donnant",
+        "English phrase:": "each bearing",
+        "Hebrew phrase": "עֹ֤שֶׂה"
     }},
     {{
-        "Target phrase": "donnant du fruit",
-        "English phrase": "with seed",
-        "Hebrew phrase": "עֹ֤שֶׂה  פְּרִי֙"
+        "Target phrase:": "du fruit",
+        "English phrase:": "fruit",
+        "Hebrew phrase": "פְּרִי֙"
     }},
     {{
-        "Target phrase": "selon leur espèce",
-        "English phrase": "according to its kind.",
+        "Target phrase:": "selon leur espèce",
+        "English phrase:": "according to its kind.”",
         "Hebrew phrase": "לְמִינ֔וֹ"
     }},
     {{
-        "Target phrase": "et ayant en eux leur semence",
-        "English phrase": "“",
-        "Hebrew phrase": "אֲשֶׁ֥ר  זַרְעוֹ־ ב֖וֹ"
+        "Target phrase:": "et ayant en eux leur semence",
+        "English phrase:": "with seed",
+        "Hebrew phrase": "אֲשֶׁ֥ר זַרְעוֹ־ ב֖וֹ"
     }},
     {{
-        "Target phrase": "sur la terre.",
-        "English phrase": "And it was so.",
-        "Hebrew phrase": "עַל־ הָאָ֑רֶץ  וַֽיְהִי־ כֵֽן׃"
+        "Target phrase:": "sur la terre.",
+        "English phrase:": "",
+        "Hebrew phrase": "עַל־הָאָ֑רֶץ"
+    }},
+    {{
+        "Target phrase:": "Et cela fut ainsi.",
+        "English phrase:": "And it was so.",
+        "Hebrew phrase": "וַֽיְהִי־כֵֽן׃"
     }}
 ]
 ```
