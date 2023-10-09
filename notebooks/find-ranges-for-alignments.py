@@ -2,6 +2,7 @@
 ## run script example: python alignments/process-ranges-for-alignments.py tpiOTNT-gpt-3.5-turbo-instruct_20230922.jsonl
 
 import os
+import re
 import json
 import argparse
 from fuzzywuzzy import process
@@ -16,7 +17,6 @@ args = parser.parse_args()
 # First Script
 def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[Dict[str, Any]]:
     macula_data: Dict[str, List[Dict[str, Union[str, int]]]] = {}
-    # TODO: fetch macula-hebrew.tsv from repo
     if not os.path.exists('data/sources/macula-hebrew.tsv'):
         os.system('wget https://github.com/Clear-Bible/macula-hebrew/raw/main/TSV/macula-hebrew.tsv -O data/sources/macula-hebrew.tsv')
     with open('data/sources/macula-hebrew.tsv', 'r') as file:
@@ -28,7 +28,6 @@ def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[D
             if vref not in macula_data:
                 macula_data[vref] = []
             macula_data[vref].append({'text': text, 'id': xml_id})
-    # TODO: fetch macula-greek-SBLGNT.tsv from repo
     if not os.path.exists('data/sources/macula-greek-SBLGNT.tsv'):
         os.system('wget https://github.com/Clear-Bible/macula-greek/raw/main/SBLGNT/tsv/macula-greek-SBLGNT.tsv -O data/sources/macula-greek-SBLGNT.tsv')
     with open('data/sources/macula-greek-SBLGNT.tsv', 'r') as file:
@@ -61,6 +60,7 @@ class RangeResult(NamedTuple):
 macula_tokens_not_matched = 0
 
 def find_ranges(dummy_content: str, text: str) -> RangeResult:
+    global macula_tokens_not_matched
     text_not_found_in_content_value = RangeResult(startPosition=-1, endPosition=-1, dummy_content=dummy_content)
     if not isinstance(text, str):
         print("text is not string", text)
@@ -87,7 +87,7 @@ def find_ranges(dummy_content: str, text: str) -> RangeResult:
                 dummy_content = dummy_content[:start_position] + '*' * len(typed_closest_match) + dummy_content[end_position:]
                 return RangeResult(startPosition=start_position, endPosition=end_position - 1, dummy_content=dummy_content)
             else: 
-                # macula_tokens_not_matched  = macula_tokens_not_matched + 1
+                macula_tokens_not_matched  = macula_tokens_not_matched + 1
                 return text_not_found_in_content_value
         else:
             return text_not_found_in_content_value
@@ -95,7 +95,7 @@ def find_ranges(dummy_content: str, text: str) -> RangeResult:
 
 def range_align_macula_tokens(processed_data: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     print(processed_data[0])
-    for data in tqdm(processed_data):
+    for data in processed_data:
         content: str = data['macula']['content']
         dummy_content = content[:]
         tokens: List[Dict[str, Any]] = data['macula'].get('token_ids', [])
@@ -131,14 +131,14 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
             continue
         
         for align in tqdm(alignment):
-            for phrase in ['English phrases', 'Macula phrases', 'Target phrase']:
+            for phrase in ['English phrase', 'Macula phrase', 'Target phrase']:
                 original_text = align.get(phrase, None)
                 if original_text is None:
                     print(f"Warning: Missing key '{phrase}' for vref {data['vref']}")
                     continue
                 content = {
-                    'English phrases': bsb_content,
-                    'Macula phrases': macula_content,
+                    'English phrase': bsb_content,
+                    'Macula phrase': macula_content,
                     'Target phrase': target_content
                 }[phrase]
                 if not isinstance(content, str):
@@ -151,9 +151,45 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
                 ranges = find_ranges(dummy_content, original_text)
                 align[phrase] = {
                     'original-text-value': original_text,
-                    'ranges': [(ranges.startPosition, ranges.endPosition)]
+                    'range': {"startPosition": ranges.startPosition, "endPosition": ranges.endPosition}
                 }
     return processed_data
+
+
+def clean_brackets(s: str) -> str:
+    """Remove brackets from a string."""
+    return s.replace("[", "").replace("]", "").strip()
+
+
+def clean_value(value: Any) -> Any:
+    """Clean up a value based on its type."""
+    if value is None:
+        return ""
+    elif isinstance(value, bool):
+        return str(value)
+    elif isinstance(value, list):
+        return [str(v) if isinstance(v, dict) else clean_brackets(v) for v in value]
+    else:
+        return clean_brackets(value)
+
+
+def normalize_key(key: str) -> str:
+    """Normalize a key based on its contents."""
+    key_mappings = {
+        "Hebrew": "Macula phrase",
+        "Greek": "Macula phrase",
+        "Macula": "Macula phrase",
+        "English": "English phrase",
+        "Spanish": "Target phrase",
+        "French": "Target phrase",
+        "Tok": "Target phrase"
+        # Add more mappings as needed.
+    }
+
+    for phrase, normalized in key_mappings.items():
+        if phrase in key:
+            return normalized
+    return key  # default if no matching phrase is found
 
 
 def normalize_phrases(filename: str) -> List[Dict[str, Any]]:
@@ -161,44 +197,23 @@ def normalize_phrases(filename: str) -> List[Dict[str, Any]]:
 
     with open(f'data/alignments/{filename}', 'r') as file:
         for line in file:
+            # Before parsing JSON, clean up specific keys and values
+            # Find "Hebrew phrase" and "Greek phrase" keys and rename them to "Macula phrase"
+            line = re.sub(r'"(Hebrew|Greek) phrase":', r'"Macula phrase":', line)
+            
             data = json.loads(line)
             if 'alignments' in data:
                 normalized_alignments = []
+
                 for alignment in data['alignments']:
                     new_alignment = {}
                     for key, value in alignment.items():
-                        # Remove brackets from keys
-                        clean_key = key.replace("[", "").replace("]", "").strip()
-
-                        # Handle None values
-                        if value is None:
-                            clean_value = ""
-                        # Handle boolean values
-                        elif isinstance(value, bool):
-                            clean_value = str(value)
-                        # Remove brackets from values
-                        elif isinstance(value, list):
-                            clean_value_list = []
-                            for v in value:
-                                if isinstance(v, dict):
-                                    # If the item is a dictionary, you might want to decide how to handle it.
-                                    # For now, I'll just convert it to a string representation.
-                                    clean_value_list.append(str(v))
-                                else:
-                                    clean_value_list.append(v.replace("[", "").replace("]", "").strip())
-                            clean_value = clean_value_list[0] if len(clean_value_list) == 1 else clean_value_list
-                        else:
-                            clean_value = value.replace("[", "").replace("]", "").strip()
-
-                        # Normalize keys
-                        if "Hebrew" in clean_key or "Greek phrase" in clean_key:
-                            new_alignment["Macula phrases"] = clean_value
-                        elif "English" in clean_key:
-                            new_alignment["English phrases"] = clean_value
-                        elif "Spanish" in clean_key:
-                            new_alignment["Target phrase"] = clean_value
+                        clean_key = clean_brackets(key)
+                        new_key = normalize_key(clean_key)
+                        new_alignment[new_key] = clean_value(value)
 
                     normalized_alignments.append(new_alignment)
+
                 data["alignments"] = normalized_alignments
             processed_data.append(data)
 
@@ -230,31 +245,9 @@ def fetch_alignment_keys(normalize_data: list[Dict[str, Any]]) -> set:
 
 # Main processingx
 normalize_data = normalize_phrases(args.filename)
-for data in normalize_data:
-    if data['vref'] == 'ROM 9:12':
-        print(data)
-        break
-
-print(f"normalize_data: {normalize_data[10000]}")
 keys = fetch_alignment_keys(normalize_data)
-print(keys)
 processed_data = assign_macula_tokens_by_vref(normalize_data)
-for data in processed_data:
-    if data['vref'] == 'ROM 9:12':
-        print(f"after assign_macula_tokens_by_vref: {data}")
-        break
-print(processed_data[0])
-print("Before range_align_macula_tokens:")
-for data in processed_data:
-    if data['vref'] == 'ROM 9:12':
-        print(data)
-        break
 processed_data = range_align_macula_tokens(processed_data)
-for data in processed_data:
-    if data['vref'] == 'ROM 9:12':
-        print(f"after range_align_macula_tokens: {data}")
-        break
-print(processed_data[0])
 final_processed_data = range_align_generated_alignments_to_vers(processed_data)
 
 # Writing the final output
