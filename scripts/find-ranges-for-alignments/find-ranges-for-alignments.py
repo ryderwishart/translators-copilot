@@ -8,6 +8,7 @@ import argparse
 from fuzzywuzzy import process
 from tqdm import tqdm
 from typing import List, Dict, Union, Optional, Any, NamedTuple
+import requests
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Process alignment files.')
@@ -16,6 +17,7 @@ args = parser.parse_args()
 
 # First Script
 def assign_macula_tokens_by_vref(normalize_data: list[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    
     macula_data: Dict[str, List[Dict[str, Union[str, int]]]] = {}
     if not os.path.exists('data/sources/macula-hebrew.tsv'):
         os.system('wget https://github.com/Clear-Bible/macula-hebrew/raw/main/TSV/macula-hebrew.tsv -O data/sources/macula-hebrew.tsv')
@@ -243,7 +245,7 @@ def fetch_alignment_keys(normalize_data: list[Dict[str, Any]]) -> set:
 
 
 
-# Main processingx
+# Main processing
 normalize_data = normalize_phrases(args.filename)
 keys = fetch_alignment_keys(normalize_data)
 processed_data = assign_macula_tokens_by_vref(normalize_data)
