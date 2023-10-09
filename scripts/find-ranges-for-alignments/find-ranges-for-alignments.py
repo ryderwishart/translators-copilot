@@ -12,7 +12,7 @@ import requests
 
 # Parse command-line arguments
 parser = argparse.ArgumentParser(description='Process alignment files.')
-parser.add_argument('filename', help='the file to process')
+parser.add_argument('filepath', help='the file to process')
 args = parser.parse_args()
 
 # First Script
@@ -129,7 +129,7 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
         
         # Check if alignment is None or a string (which means there was an error), and skip processing if it is
         if alignment is None or isinstance(alignment, str):
-            print(f"Skipping vref {data['vref']} due to error or None value in alignment data: {alignment}")
+            # print(f"Skipping vref {data['vref']} due to error or None value in alignment data: {alignment}")
             continue
         
         for align in tqdm(alignment):
@@ -153,7 +153,7 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
                 ranges = find_ranges(dummy_content, original_text)
                 align[phrase] = {
                     'original-text-value': original_text,
-                    'range': {"startPosition": ranges.startPosition, "endPosition": ranges.endPosition}
+                    'ranges': [{"startPosition": ranges.startPosition, "endPosition": ranges.endPosition}]
                 }
     return processed_data
 
@@ -194,10 +194,10 @@ def normalize_key(key: str) -> str:
     return key  # default if no matching phrase is found
 
 
-def normalize_phrases(filename: str) -> List[Dict[str, Any]]:
+def normalize_phrases(filepath: str) -> List[Dict[str, Any]]:
     processed_data = []
 
-    with open(f'data/alignments/{filename}', 'r') as file:
+    with open(f'{filepath}', 'r') as file:
         for line in file:
             # Before parsing JSON, clean up specific keys and values
             # Find "Hebrew phrase" and "Greek phrase" keys and rename them to "Macula phrase"
@@ -222,15 +222,6 @@ def normalize_phrases(filename: str) -> List[Dict[str, Any]]:
     return processed_data
 
 
-
-
-
-
-
-
-
-
-    
 def fetch_alignment_keys(normalize_data: list[Dict[str, Any]]) -> set:
     keys = set()
 
@@ -246,15 +237,15 @@ def fetch_alignment_keys(normalize_data: list[Dict[str, Any]]) -> set:
 
 
 # Main processing
-normalize_data = normalize_phrases(args.filename)
+normalize_data = normalize_phrases(args.filepath)
 keys = fetch_alignment_keys(normalize_data)
 processed_data = assign_macula_tokens_by_vref(normalize_data)
 processed_data = range_align_macula_tokens(processed_data)
 final_processed_data = range_align_generated_alignments_to_vers(processed_data)
 
 # Writing the final output
-output_filename = f'data/alignments/{args.filename}_final_output.jsonl'
+output_filepath = f'{os.path.splitext(args.filepath)[0]}_final_output.jsonl'
 print(f"{macula_tokens_not_matched} macula tokens were not matched")
-with open(output_filename, 'w') as outfile:
+with open(output_filepath, 'w') as outfile:
     for data in final_processed_data:
         outfile.write(json.dumps(data, ensure_ascii=False) + '\n')
