@@ -129,7 +129,7 @@ def range_align_generated_alignments_to_vers(processed_data: List[Dict[str, Any]
         
         # Check if alignment is None or a string (which means there was an error), and skip processing if it is
         if alignment is None or isinstance(alignment, str):
-            # print(f"Skipping vref {data['vref']} due to error or None value in alignment data: {alignment}")
+            print(f"Skipping vref {data['vref']} due to error or None value in alignment data: {alignment}")
             continue
         
         for align in tqdm(alignment):
