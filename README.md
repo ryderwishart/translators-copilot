@@ -66,5 +66,5 @@ cat alignments* | grep "Error" > remaining_errors.jsonl
 To map the output back to the original Macula data, run:
 
 ```bash
-python3 notebooks/find-ranges-for-alignments.py fraLSG/complete_bible/complete_bible_fraLSG.jsonl
+python3 scripts/find-ranges-for-alignments.py fraLSG/complete_bible/complete_bible_fraLSG.jsonl
 ```
