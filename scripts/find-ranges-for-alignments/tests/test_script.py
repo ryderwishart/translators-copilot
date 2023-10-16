@@ -19,7 +19,7 @@ class TestFindRangesForAlignments(unittest.TestCase):
         # self.assertEqual(result.returncode, 0, f"Script failed with error: {result.stderr}")
 
         # Load the expected output from a file (you'll need to create this file)
-        with open('scripts/find-ranges-for-alignments/tests/expected_output.json', 'r') as f:
+        with open('scripts/find-ranges-for-alignments/tests/expected_output.jsonl', 'r') as f:
             expected_output = f.read()
 
         # Convert both the actual and expected outputs to dictionaries
