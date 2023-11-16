@@ -5,7 +5,7 @@ import random
 import time
 
 openai.api_key = os.environ['OPENAI_API_KEY']
-openai.organization = 'org-TKu0EilyBURjOa59qJxK0hHb' # FIXME: use env
+openai.organization = os.environ['OPENAI_API_ORG']
 
 MAX_RETRIES = 10
 
