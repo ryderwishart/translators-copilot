@@ -1,5 +1,6 @@
 import useSWR from 'swr';
 import { swrFetcher } from '@/lib/utils';
+import { url } from '@/app/config';
 
 type DatabaseInfoResponse = {
     data: DatabaseInfoItem[];
@@ -15,7 +16,7 @@ type DatabaseInfoItem = {
 export default function useDatabaseInfo() {
 
     const { data, error }: DatabaseInfoResponse = useSWR(
-        `http://localhost:3000/api/db_info`,
+        `${url}/api/db_info`,
         swrFetcher,
     );
 

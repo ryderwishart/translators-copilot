@@ -1,3 +1,4 @@
+import { url } from '@/app/config';
 import { useEffect, useState } from 'react';
 
 type VerseData = {
@@ -26,7 +27,7 @@ export default function useVerse({ verseRef, targetLanguageCode }: Props) {
         if (targetLanguageCode && verseRef) {
             const fetchQuery = async () => {
                 const response = await fetch(
-                    `http://localhost:3000/api/verse/${encodeURIComponent(
+                    `${url}/api/verse/${encodeURIComponent(
                         verseRef,
                     )}&${targetLanguageCode}`,
                 );

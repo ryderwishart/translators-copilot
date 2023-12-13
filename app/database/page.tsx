@@ -1,4 +1,5 @@
 import { DatabaseInfo } from '@/components/DatabaseTable';
+import { url } from '../config';
 
 interface Table {
   name: string;
@@ -8,7 +9,7 @@ interface Table {
 }
 
 async function getData(): Promise<{ dbInfo: Table[] }> {
-  const dbInfoRes = await fetch('http://localhost:3000/api/db_info');
+  const dbInfoRes = await fetch(`${url}/api/db_info`);
 
   if (!dbInfoRes.ok) {
     throw new Error('Failed to fetch data');
@@ -29,7 +30,7 @@ async function getData(): Promise<{ dbInfo: Table[] }> {
   for (const table of dbInfo) {
     table.rows = []; // Need to add a `rows` property to each table object in dbInfo
     const queryRes = await fetch(
-      `http://localhost:3000/api/query/${table.name}/${sampleQueryString}&limit=10`,
+      `${url}/api/query/${table.name}/${sampleQueryString}&limit=10`,
     );
     if (!queryRes.ok) {
       throw new Error(

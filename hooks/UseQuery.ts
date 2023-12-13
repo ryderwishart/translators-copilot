@@ -1,3 +1,4 @@
+import { url } from '@/app/config';
 import { QueryObject } from '@/lib/types';
 import { useEffect, useState } from 'react';
 
@@ -17,7 +18,7 @@ export default function useQuery({ sourceLanguageCode, input, limit }: Props) {
         if (sourceLanguageCode && input) {
             const fetchQuery = async () => {
                 const response = await fetch(
-                    `http://localhost:3000/api/query/${sourceLanguageCode}/${input}&limit=${limit ? limit : 50}`,
+                    `${url}/api/query/${sourceLanguageCode}/${input}&limit=${limit ? limit : 50}`,
                 );
                 if (!response.ok) {
                     setQueryError(response.statusText);

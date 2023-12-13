@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import useQuery from './UseQuery';
 import { QueryObject } from "@/lib/types";
+import { url } from '@/app/config';
 
 type Props = {
     input: string;
@@ -25,7 +26,7 @@ export default function useSimilarVerses({ sourceLanguageCode, targetLanguageCod
                 const updatedVerses: QueryObject[] = await Promise.all(
                     queryData.map(async (example: QueryObject) => {
                         const response = await fetch(
-                            `http://localhost:3000/api/verse/${encodeURIComponent(
+                            `${url}/api/verse/${encodeURIComponent(
                                 example.vref,
                             )}&${targetLanguageCode}`,
                         );

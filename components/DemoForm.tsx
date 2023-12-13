@@ -17,6 +17,7 @@ import { useForm } from 'react-hook-form';
 import LanguageDropdown from '@/components/LanguageDropdown';
 import CollapsibleSection from './CollapsibleSection';
 import { QueryObject } from '@/lib/types';
+import { url } from '@/app/config';
 
 const formSchema = z.object({
     searchCriteria: z.string({
@@ -88,7 +89,7 @@ export default function DemoForm({
 
         const fetchQuery = async () => {
             const verseResponse = await fetch(
-                `http://localhost:3000/api/verse/${encodeURIComponent(
+                `${url}/api/verse/${encodeURIComponent(
                     verseRef,
                 )}&${targetLanguageCode}`,
             );
@@ -96,7 +97,7 @@ export default function DemoForm({
             setVerseData(verseData ? verseData : undefined);
 
             const queryResponse = await fetch(
-                `http://localhost:3000/api/query/${sourceLanguageCode}/${searchCriteria}&limit=50`,
+                `${url}/api/query/${sourceLanguageCode}/${searchCriteria}&limit=50`,
             );
             const queryData = await queryResponse.json();
             if (queryData) {
@@ -104,7 +105,7 @@ export default function DemoForm({
                     const updatedVerses: QueryObject[] = await Promise.all(
                         queryData.map(async (example: QueryObject) => {
                             const response = await fetch(
-                                `http://localhost:3000/api/verse/${encodeURIComponent(
+                                `${url}/api/verse/${encodeURIComponent(
                                     example.vref,
                                 )}&${targetLanguageCode}`,
                             );
