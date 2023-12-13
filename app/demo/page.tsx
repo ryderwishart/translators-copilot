@@ -3,6 +3,7 @@ import PromptCompletion from '@/components/PromptCompletion';
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { SimilarExample } from '@/lib/types';
+import { url } from '../config';
 
 async function fetcher(url: string) {
   const res = await fetch(url);
@@ -36,14 +37,14 @@ export default function Page() {
   );
 
   const { data: sourceVerse, error: sourceVerseError }: any = useSWR(
-    `http://localhost:3000/api/verse/${encodeURIComponent(
+    `${url}/api/verse/${encodeURIComponent(
       verseRef,
     )}&${targetLanguageCode}`,
     fetcher,
   );
 
   const { data, error } = useSWR(
-    `http://localhost:3000/api/query/${sourceLanguageCode}/${input}&limit=10`,
+    `${url}/api/query/${sourceLanguageCode}/${input}&limit=10`,
     fetcher,
   );
 
@@ -53,7 +54,7 @@ export default function Page() {
         const updatedSentences: SimilarExample[] = await Promise.all(
           data.map(async (example: SimilarExample) => {
             const response = await fetch(
-              `http://localhost:3000/api/verse/${encodeURIComponent(
+              `${url}/api/verse/${encodeURIComponent(
                 example.vref,
               )}&${targetLanguageCode}`,
             );

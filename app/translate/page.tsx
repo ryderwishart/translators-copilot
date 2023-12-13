@@ -17,7 +17,7 @@ export interface VerseDataMap {
 
 async function getData(props: DataProps): Promise<VerseDataMap> {
   const promptRes = await fetch(
-    `http://localhost:3000/api/translation-prompt-builder?vref=${encodeURIComponent(
+    `${url}/api/translation-prompt-builder?vref=${encodeURIComponent(
       props.vref,
     )}&target_language_code=${props.target_language_code}`,
   );
